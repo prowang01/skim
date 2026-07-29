@@ -42,6 +42,16 @@ FINAL_RERANK_K = 8
 TIME_WINDOW_SECONDS = 10.0
 GAP_FLAG_THRESHOLD_SECONDS = 20.0
 
+# Adjacent-context (sentence-window) expansion: for each selected item, pull
+# in this many same-modality neighbors immediately before/after it in the
+# transcript/frame sequence -- not a time window, a position window. Targets
+# passages where the highest-ranked chunk *announces* an answer ("he shares
+# a powerful analogy...") but the actual content is a few segments away.
+# Kept conservative (not 3+): each additional neighbor also gets its own
+# cross-modal expansion downstream, so context grows fast with window size,
+# and with it the risk of diluting precision with less-relevant filler.
+ADJACENT_NEIGHBOR_COUNT = 2
+
 
 def _rerank_enabled() -> bool:
     return os.environ.get(RERANK_ENV_VAR, "false").strip().lower() in ("1", "true", "yes")
@@ -76,6 +86,45 @@ def _top_k(index: Index, question: str, k: int) -> list[IndexItem]:
     similarities = index.matrix @ query_vector
     top_indices = np.argsort(-similarities)[: min(k, len(index.items))]
     return [index.items[i] for i in top_indices]
+
+
+def _expand_with_adjacent_context(
+    index: Index, selected: list[IndexItem], neighbor_count: int
+) -> list[IndexItem]:
+    """Pull in the neighbor_count same-modality chunks immediately before and
+    after each selected item, in transcript/frame order -- a position
+    window, not a time window. Targets passages where the highest-ranked
+    chunk *announces* an answer but the actual content is a few segments
+    away, which neither cosine similarity nor a passage-relevance
+    cross-encoder reliably retrieves on its own (see README)."""
+    if neighbor_count <= 0:
+        return selected
+
+    by_kind: dict[str, list[IndexItem]] = {}
+    for item in index.items:
+        by_kind.setdefault(item.kind, []).append(item)
+    for items in by_kind.values():
+        items.sort(key=lambda i: i.timestamp)
+
+    selected_keys = {(item.kind, item.timestamp) for item in selected}
+    expanded = list(selected)
+
+    for item in selected:
+        sequence = by_kind.get(item.kind, [])
+        try:
+            pos = next(i for i, it in enumerate(sequence) if it.timestamp == item.timestamp)
+        except StopIteration:
+            continue
+        lo = max(0, pos - neighbor_count)
+        hi = min(len(sequence), pos + neighbor_count + 1)
+        for neighbor in sequence[lo:hi]:
+            key = (neighbor.kind, neighbor.timestamp)
+            if key not in selected_keys:
+                selected_keys.add(key)
+                expanded.append(neighbor)
+
+    expanded.sort(key=lambda i: i.timestamp)
+    return expanded
 
 
 def _expand_with_temporal_neighbors(
@@ -132,9 +181,10 @@ def retrieve(
     window: float = TIME_WINDOW_SECONDS,
     gap_threshold: float = GAP_FLAG_THRESHOLD_SECONDS,
 ) -> list[IndexItem]:
-    """Retrieve the most relevant chunks for a question, temporally align
-    them with same-moment context from the other modality, and flag any
-    that remain isolated (no nearby context at all) as possible blind spots.
+    """Retrieve the most relevant chunks for a question, expand each with
+    its same-modality neighbors and same-moment context from the other
+    modality, and flag any that remain isolated (no nearby context at all)
+    as possible blind spots.
 
     Default (SKIM_ENABLE_RERANK unset/false): a single adaptive top-k over
     the bi-encoder ranking (see _default_top_k) -- the proven Palier 4 path.
@@ -154,5 +204,6 @@ def retrieve(
     else:
         top = _top_k(index, question, _default_top_k(len(index.items)))
 
+    top = _expand_with_adjacent_context(index, top, ADJACENT_NEIGHBOR_COUNT)
     expanded = _expand_with_temporal_neighbors(index, top, window)
     return _annotate_gaps(index, expanded, gap_threshold)

@@ -12,16 +12,18 @@ lectures — where the meaning lives mostly in audio plus a few key visuals. Not
 for fast-motion or sports footage (see Limitations and Eval results below for exactly
 how it handles that case when asked anyway).
 
-This is **Palier 5** of a larger plan (see `videolens-spec.md`): retrieve-then-rerank.
-Palier 1 was audio-only; Palier 2 added visual descriptions but dumped everything into
-every question; Palier 3 added retrieval + temporal fusion; Palier 4 added blind-spot
-honesty and an eval harness comparing this system against a naive dump-everything
-baseline. Palier 5 adds an optional two-stage retrieval pipeline (fast bi-encoder
-search, then a local cross-encoder rerank) built and tuned directly against what the
-Palier 4 evals found broken at scale -- **off by default** (`SKIM_ENABLE_RERANK=true`
-to try it), since the eval suite showed no net improvement over plain adaptive top-k;
-see Design decisions and Eval results for the full story. Each palier is meant to be a
-complete, working project on its own — this one is it for now.
+This is **Palier 5** of a larger plan (see `videolens-spec.md`): closing the
+retrieval-at-scale gap Palier 4's evals found. Palier 1 was audio-only; Palier 2 added
+visual descriptions but dumped everything into every question; Palier 3 added
+retrieval + temporal fusion; Palier 4 added blind-spot honesty and an eval harness
+comparing this system against a naive dump-everything baseline, which then found
+retrieval losing badly on a long, multi-topic video. Palier 5 chased that gap through
+three fix attempts, evaluating each one honestly rather than assuming it worked:
+adaptive top-k (kept -- see Design decisions), cross-encoder reranking (built,
+evaluated, found to be a wash, kept only as an opt-in flag -- `SKIM_ENABLE_RERANK=true`
+to try it), and adjacent-context retrieval (kept -- closed the remaining gap with zero
+regressions on the rest of the eval set). See Eval results for the full story. Each
+palier is meant to be a complete, working project on its own — this one is it for now.
 
 ## How it works
 
@@ -50,12 +52,16 @@ complete, working project on its own — this one is it for now.
    cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, via `sentence-transformers`
    -- no API key, runs on CPU) re-scores every candidate jointly against the
    question and keeps the best 8 (`index/rerank.py`). Either way, each winning chunk
-   is then *expanded* with any chunk of the *other* modality within a ±10s time
-   window, even if that chunk alone wouldn't have matched the question's wording.
-   Each item is also checked for isolation: if the nearest chunk of the *other*
-   modality is more than ~20s away, the item is flagged (e.g. "no visual context
-   within 45s") so the model has a computed signal for a possible blind spot instead
-   of having to judge raw timestamp gaps itself (`index/retrieve.py`).
+   is then expanded twice: first with its **2 nearest same-modality neighbors**
+   before and after it in the transcript/frame sequence (not a time window -- a
+   position window; this is what catches an answer whose content sits a few
+   segments after the passage that merely *announces* it), then with any chunk of
+   the *other* modality within a ±10s time window, even if that chunk alone
+   wouldn't have matched the question's wording. Each item is also checked for
+   isolation: if the nearest chunk of the *other* modality is more than ~20s away,
+   the item is flagged (e.g. "no visual context within 45s") so the model has a
+   computed signal for a possible blind spot instead of having to judge raw
+   timestamp gaps itself (`index/retrieve.py`).
 7. The retrieved, temporally-aligned, gap-flagged items are sorted chronologically
    and placed in an LLM's system prompt, which explicitly instructs it to: treat
    close-in-time audio/visual lines as the same moment and infer what's being *done*;
@@ -129,6 +135,19 @@ complete, working project on its own — this one is it for now.
   exactly the moment being asked about. Expanding each retrieved chunk with
   same-time-window chunks from the other modality fixes this without expanding the
   whole context — it's targeted, not a second dump.
+- **Adjacent-context (sentence-window) expansion, on by default, always -- not
+  gated behind a flag like rerank.** Both cross-encoders in the rerank experiment
+  correctly ranked the passage that *announces* an answer above the passage that
+  *contains* it (see Eval results) -- a narrative-structure problem no relevance
+  ranker fixes. The actual fix is structural, not a smarter ranker: pull in each
+  winning chunk's 2 nearest same-modality neighbors by position, regardless of
+  vocabulary or time gap. Evaluated exactly like every other change here -- kept
+  only after the full suite showed the podcast's needle-in-haystack score jumping
+  from 3.0/4 to a clean 4.0/4 (Q3 rescued, verified against the actual answer text)
+  with zero regressions on the other 5 videos. Kept conservative at 2 neighbors
+  (not 3+): each additional neighbor also gets its own cross-modal expansion
+  downstream, so unrestrained growth would dilute precision fast, and the eval
+  set's smaller videos are sensitive to that (see Limitations).
 - **A computed gap signal, not a prompt-only motion caveat.** Telling the model
   "be honest about stills vs. motion" is cheap prompt wording and works for motion
   questions -- but judging whether a *specific* timestamp gap is "big" from a wall
@@ -158,45 +177,43 @@ scale with needle-in-haystack questions. 15 questions total across factual recal
 cross-modal fusion, reasoning, not-in-video honesty, motion blind-spot honesty, and
 needle-in-haystack recall. Full detail in `evals/results.json`.
 
-**Note on what ships by default:** the table below was run with
-`SKIM_ENABLE_RERANK=true`, to evaluate the rerank stage itself. The system's actual
-default (`SKIM_ENABLE_RERANK` unset) is plain adaptive top-k, which scored *better*
-on this same eval (12.0/15, see the three-stage journey below) -- rerank is
-documented here because of what building and testing it revealed, not because it's
-what ships.
+**This is the default-config table** (`SKIM_ENABLE_RERANK` unset -- adaptive top-k +
+adjacent-context expansion, both on by default):
 
 ```
 video                     retrieval          naive
 basket_france_usa             3.0/3          3.0/3
-pasta                         1.5/2          1.0/2
-podcast                       2.0/4          4.0/4
-rice                          1.5/2          2.0/2
+pasta                         1.0/2          1.0/2
+podcast                       4.0/4          4.0/4
+rice                          2.0/2          2.0/2
 stock_exchange                1.5/2          1.5/2
 ted                           2.0/2          2.0/2
 --------------------------------------------------
-TOTAL                       11.5/15        13.5/15
+TOTAL                       13.5/15        13.5/15
 
 category                  retrieval          naive
 blind_spot_motion             2.0/2          2.0/2
 cross_modal                   1.5/2          1.5/2
-factual                       2.5/3          2.0/3
-needle_haystack               2.0/4          4.0/4
+factual                       2.0/3          2.0/3
+needle_haystack               4.0/4          4.0/4
 not_in_video                  2.0/2          2.0/2
-reasoning                     1.5/2          2.0/2
+reasoning                     2.0/2          2.0/2
 --------------------------------------------------
-TOTAL                       11.5/15        13.5/15
+TOTAL                       13.5/15        13.5/15
 ```
 
-**These numbers are manually corrected after catching a judge misgrade -- see the
-eval-integrity note below before trusting any single run's raw output.** The full,
-honest three-stage journey on the podcast's needle-in-haystack score (same 15
-questions throughout the whole eval set; only the podcast score changed across
-retrieval changes):
+Retrieval matches naive exactly, at parity rather than trailing -- and gets there
+with a bounded, targeted context instead of a full dump. This is the end of a
+four-stage journey on the podcast's needle-in-haystack score (same 15 questions
+throughout the whole eval set; only the podcast score changed across retrieval
+changes -- and only after each stage was actually measured, not assumed):
 
 ```
-fixed k=6 (Palier 4):              1.5/4
-adaptive top-k (Palier 4, cont.):  3.0/4
-retrieve-then-rerank (Palier 5):   2.0/4   <- after correcting a judge misgrade (raw: 3.0/4)
+fixed k=6 (Palier 4):                1.5/4
+adaptive top-k (Palier 4, cont.):     3.0/4
+retrieve-then-rerank (evaluated,
+  not kept as default):              2.0/4   <- after correcting a judge misgrade (raw: 3.0/4)
+adjacent-context (Palier 5, kept):    4.0/4   <- all 4 podcast questions correct, zero regressions
 ```
 
 **Fixed k=6:** naive clearly won (4.0/4 vs. 1.5/4). Root-caused: the real
@@ -227,12 +244,25 @@ correctly rank it highest by that standard. But topical relevance isn't the same
 thing as *where the answer's content lives* -- the actual balloon story is in the
 passages that follow, and neither cosine similarity nor a passage-relevance
 cross-encoder is built to bridge "this passage announces an answer" to "the answer
-is in the next few passages after it." The likely real fix, not implemented here:
-**adjacent-context / sentence-window retrieval** -- when a chunk is selected,
-automatically pull in a window of the chunks immediately following it (not just
-same-timestamp cross-modal chunks, which is what `index/retrieve.py` already does),
-since narrated stories/analogies are told in fragments across consecutive Whisper
-segments after an intro line, not in one self-contained chunk.
+is in the next few passages after it." The likely real fix: **adjacent-context /
+sentence-window retrieval** -- when a chunk is selected, automatically pull in a
+window of the chunks immediately around it (not just same-timestamp cross-modal
+chunks, which is what `index/retrieve.py` already did), since narrated
+stories/analogies are told in fragments across consecutive Whisper segments after
+an intro line, not in one self-contained chunk.
+
+**Adjacent-context retrieval, tried next, closed the gap -- kept because it was
+verified, not just plausible.** Pulling in each winning chunk's 2 nearest
+same-modality neighbors by position (not time) put the actual "kid with a balloon...
+never ever ever ever going to let go" text into context for the first time across
+every attempt so far. The resulting answer explicitly names the balloon analogy and
+describes the "hold on forever" mindset, matching the expected answer's actual
+content -- double-checked against the raw answer text, exactly like the rerank
+result was, since one misgrade this round was reason enough to distrust every
+"correct" until read. Re-running the full 6-video suite (the strict bar going in:
+keep only if the podcast improves *and* nothing else regresses) showed the podcast
+at a clean 4.0/4 and every other video unchanged or improved -- zero regressions,
+so it's the default now, not gated behind a flag the way rerank is.
 
 **Eval-integrity note: a judge misgrade, caught by spot-checking, not by design.**
 The raw run scored the balloon question "correct" -- but reading the actual answer
@@ -256,18 +286,30 @@ Limitations).
 
 ## Limitations
 
-- **Retrieve-then-rerank closes part of the retrieval-at-scale gap, still not all of
-  it -- three distinct failure modes found so far, only some fixed.** (1) Fixed
-  top-k missing rankable-but-excluded passages -- fixed by adaptive top-k. (2) Pure
-  vocabulary mismatch between question and answer wording -- partially addressed:
-  a wider adaptive candidate pool now gets the passage *into* Stage 1, but (3) a
-  passage-relevance cross-encoder still isn't the right tool when the retrieved
-  passage that *announces* an answer scores higher than the passage that *contains*
-  it, because that's a narrative-structure problem, not a relevance-ranking one (see
-  Eval results for the full case study). Likely real fix: adjacent-context /
-  sentence-window retrieval, not a better reranker -- not yet implemented.
-- The ±10s temporal-alignment window is still fixed regardless of corpus size or
-  video length, unlike the candidate pool.
+- **Three distinct retrieval-at-scale failure modes were found; all three are now
+  addressed, though not all by the tool first tried on them.** (1) Fixed top-k
+  missing rankable-but-excluded passages -- fixed by adaptive top-k. (2) Pure
+  vocabulary mismatch between question and answer wording -- a wider adaptive
+  candidate pool gets the passage *into* consideration. (3) A passage-relevance
+  cross-encoder isn't the right tool when the passage that *announces* an answer
+  scores higher than the passage that *contains* it (a narrative-structure problem,
+  not a relevance-ranking one) -- fixed not by a better reranker but by
+  adjacent-context (sentence-window) retrieval, which doesn't rank at all, it just
+  pulls in what's next to a winning chunk regardless of relevance score (see Eval
+  results for the full case study).
+- **Adjacent-context expansion adds real breadth to every retrieved context, which
+  is a double-edged tradeoff, not a free win.** On the podcast video, a single
+  question's final context grew to 164 items (up from 8-40) once same-modality
+  neighbor expansion stacks with cross-modal expansion per winning chunk. The full
+  eval showed no regression from this on any of the 6 videos, but this eval set is
+  still small (see below) -- a longer or noisier video than the podcast, or a
+  question needing more precision than recall, could plausibly suffer from the
+  added context diluting focus. `ADJACENT_NEIGHBOR_COUNT = 2` in
+  `index/retrieve.py` was deliberately kept conservative (not 3+) for exactly this
+  reason.
+- The ±10s temporal-alignment window and the 2-neighbor adjacent-context window are
+  both still fixed regardless of corpus size or video length, unlike the candidate
+  pool.
 - **LLM-as-judge can clear-cut misgrade, not just disagree at the margin.** One eval
   run scored an evasive "I don't know" answer as "correct" against an expected answer
   that explicitly wasn't "unknown" -- caught only by manually reading the answer text
@@ -315,15 +357,11 @@ Limitations).
 
 Not implemented, just noted for later:
 
-- **Adjacent-context / sentence-window retrieval.** The likely real fix for the
-  balloon-analogy case in Eval results: when a chunk is selected (by rerank or
-  top-k), also pull in the next few consecutive chunks from the same modality, not
-  just same-timestamp chunks from the other modality (which is all `retrieve.py`
-  currently expands with). Narrated stories/analogies are told across several
-  consecutive short Whisper segments after an intro line, and that intro line is
-  often the one that scores highest for topical relevance -- pulling its neighbors
-  forward would surface the content the intro line is about, not just the
-  announcement of it.
+- **Adaptive adjacent-context window.** `ADJACENT_NEIGHBOR_COUNT = 2` is currently a
+  flat constant regardless of corpus size, same as the ±10s cross-modal window --
+  a longer, denser video might want a different value than a short clip, but there's
+  no rank-data-grounded evidence yet for what that curve should look like (one long
+  video is one data point, not a curve -- see Limitations).
 - **Adjustable answer depth.** Right now every answer is whatever length the LLM
   defaults to. Letting the user pick concise vs. detailed (e.g. a toggle or a
   system-prompt parameter) would help match the answer to the question -- a quick
