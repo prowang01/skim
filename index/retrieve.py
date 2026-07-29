@@ -44,6 +44,16 @@ GAP_FLAG_THRESHOLD_SECONDS = 20.0
 # quickly with this number.
 ADJACENT_NEIGHBOR_COUNT = 2
 
+# On small corpora, adjacent-context + cross-modal expansion can compound
+# until retrieval covers nearly the whole video (e.g. 95% on a 66-item
+# video) -- no longer selective, just a slower version of the naive dump.
+# This caps the final retrieved set to a fraction of the corpus. It rarely
+# binds on large corpora (expansion there naturally stays well under the
+# fraction already) and never trims below the core top-k/reranked
+# selection, so tiny videos keep the context they actually need.
+RELATIVE_CAP_FRACTION = 0.35
+RELATIVE_CAP_MIN_ITEMS = 15
+
 
 def _rerank_enabled() -> bool:
     return os.environ.get(RERANK_ENV_VAR, "false").strip().lower() in ("1", "true", "yes")
@@ -156,6 +166,25 @@ def _annotate_gaps(index: Index, items: list[IndexItem], threshold: float) -> li
     return annotated
 
 
+def _apply_relative_cap(
+    n_items: int, core: list[IndexItem], expanded: list[IndexItem]
+) -> list[IndexItem]:
+    """Trim expansion-only additions so the final set stays within a
+    fraction of the corpus, without ever dropping a core (top-k/reranked)
+    item -- expansion is enrichment, the core selection is the actual
+    relevance signal."""
+    cap = int(np.clip(round(n_items * RELATIVE_CAP_FRACTION), RELATIVE_CAP_MIN_ITEMS, n_items))
+    if len(expanded) <= cap:
+        return expanded
+
+    core_keys = {(item.kind, item.timestamp) for item in core}
+    kept_core = [item for item in expanded if (item.kind, item.timestamp) in core_keys]
+    extras = [item for item in expanded if (item.kind, item.timestamp) not in core_keys]
+
+    budget = max(0, cap - len(kept_core))
+    return sorted(kept_core + extras[:budget], key=lambda i: i.timestamp)
+
+
 def retrieve(
     index: Index,
     question: str,
@@ -178,10 +207,11 @@ def retrieve(
         if candidate_k is None:
             candidate_k = _default_candidate_k(len(index.items))
         candidates = _top_k(index, question, candidate_k)
-        top = rerank(question, candidates, final_k)
+        seed = rerank(question, candidates, final_k)
     else:
-        top = _top_k(index, question, _default_top_k(len(index.items)))
+        seed = _top_k(index, question, _default_top_k(len(index.items)))
 
-    top = _expand_with_adjacent_context(index, top, ADJACENT_NEIGHBOR_COUNT)
+    top = _expand_with_adjacent_context(index, seed, ADJACENT_NEIGHBOR_COUNT)
     expanded = _expand_with_temporal_neighbors(index, top, window)
-    return _annotate_gaps(index, expanded, gap_threshold)
+    capped = _apply_relative_cap(len(index.items), seed, expanded)
+    return _annotate_gaps(index, capped, gap_threshold)

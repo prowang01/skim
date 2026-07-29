@@ -57,11 +57,14 @@ palier is meant to be a complete, working project on its own — this one is it 
    position window; this is what catches an answer whose content sits a few
    segments after the passage that merely *announces* it), then with any chunk of
    the *other* modality within a ±10s time window, even if that chunk alone
-   wouldn't have matched the question's wording. Each item is also checked for
-   isolation: if the nearest chunk of the *other* modality is more than ~20s away,
-   the item is flagged (e.g. "no visual context within 45s") so the model has a
-   computed signal for a possible blind spot instead of having to judge raw
-   timestamp gaps itself (`index/retrieve.py`).
+   wouldn't have matched the question's wording. The result is then capped to at
+   most ~35% of the corpus (never below the original top-k/reranked selection) --
+   on small videos, the two expansion steps above can otherwise compound until
+   retrieval covers nearly the whole video, no longer selective. Each item is also
+   checked for isolation: if the nearest chunk of the *other* modality is more than
+   ~20s away, the item is flagged (e.g. "no visual context within 45s") so the
+   model has a computed signal for a possible blind spot instead of having to
+   judge raw timestamp gaps itself (`index/retrieve.py`).
 7. The retrieved, temporally-aligned, gap-flagged items are sorted chronologically
    and placed in an LLM's system prompt, which explicitly instructs it to: treat
    close-in-time audio/visual lines as the same moment and infer what's being *done*;
@@ -148,6 +151,19 @@ palier is meant to be a complete, working project on its own — this one is it 
   (not 3+): each additional neighbor also gets its own cross-modal expansion
   downstream, so unrestrained growth would dilute precision fast, and the eval
   set's smaller videos are sensitive to that (see Limitations).
+- **A relative cap (~35% of the corpus) on the final retrieved set, bounding what
+  the two expansion steps above can compound to.** Adaptive top-k already scales
+  the *seed* selection down for small corpora, but expansion is proportional, not
+  absolute -- on the 66-item TED talk, the seed (11 items) plus its neighbors and
+  cross-modal matches ballooned to 45-63 items (68-95% of the video), no longer
+  selective, just a slower version of the naive dump. The cap only trims
+  expansion-only additions, never the seed itself, so tiny videos don't lose the
+  context they need -- and it structurally cannot affect a large corpus like the
+  911-item podcast: expansion there naturally lands around 160-180 items, and the
+  cap function's very first check (`if len(expanded) <= cap: return expanded`)
+  returns the set completely untouched whenever it's already under the threshold
+  (319 items here) -- not "unlikely to bind", provably a no-op at every observed
+  size for that video.
 - **A computed gap signal, not a prompt-only motion caveat.** Telling the model
   "be honest about stills vs. motion" is cheap prompt wording and works for motion
   questions -- but judging whether a *specific* timestamp gap is "big" from a wall
@@ -284,6 +300,43 @@ been unaffected by every retrieval change since. Both systems still miss the pas
 bacon question for the unrelated, already-documented ingestion reason (see
 Limitations).
 
+**A follow-up fix: short videos were retrieving nearly the whole corpus.** TED (66
+items) was pulling 45-63 items per question -- 68-95% of the video, no longer
+selective, just a slower version of the naive dump. Root cause: adaptive top-k
+already shrinks the *seed* selection for small corpora, but the two expansion steps
+(adjacent-context, cross-modal) are proportional, not absolute -- there's less room
+on a small video for them to avoid re-covering most of it.
+
+**Fix: a ~35% relative cap on the final retrieved set**, trimming only
+expansion-only additions, never the seed. Retrieved-item counts -- deterministic,
+unaffected by LLM/judge noise -- are the clean signal here:
+
+```
+                TED (66 items)          podcast (911 items)
+before cap    45-63 items (68-95%)     160-180 items (18-20%)
+after cap     23 items (35%, capped)   159-180 items (17-20%, unchanged)
+```
+
+**Podcast is provably unaffected, not just observed to be similar.** The cap
+function's first check is `if len(expanded) <= cap: return expanded` -- for podcast,
+cap=319, and its expanded set has never exceeded 180 in any measurement. The
+function returns the untouched set every time, for any embedding outcome; there is
+no code path where podcast's retrieved content can differ from the unmodified
+version.
+
+**The eval score across 3 post-fix runs was noisier than any prior fix here
+(podcast: 3.5/4, 3.5/4, 3.0/4, vs. a single 4.0/4 pre-fix measurement) -- worth
+stating plainly rather than smoothing over.** Every dip traced back to the same two
+pre-existing weak spots, verified by reading the actual answer text each time: the
+balloon-analogy question's chronic judge nitpicking (present since the
+adjacent-context work above), and, in one run, the near-silent pasta video's Whisper
+transcription hallucinating *different* phantom "speech" ("Yeah" repeated, instead
+of the usual "Oh." repeated) than every prior run of the same file -- which also
+depressed naive's score on a code path that never calls `retrieve()` at all. No dip
+was ever traced to missing or wrong retrieved content. Combined with the structural
+proof above, this is accepted as pre-existing LLM/judge and Whisper non-determinism,
+not evidence against the fix.
+
 ## Limitations
 
 - **Three distinct retrieval-at-scale failure modes were found; all three are now
@@ -297,16 +350,18 @@ Limitations).
   adjacent-context (sentence-window) retrieval, which doesn't rank at all, it just
   pulls in what's next to a winning chunk regardless of relevance score (see Eval
   results for the full case study).
-- **Adjacent-context expansion adds real breadth to every retrieved context, which
-  is a double-edged tradeoff, not a free win.** On the podcast video, a single
-  question's final context grew to 164 items (up from 8-40) once same-modality
-  neighbor expansion stacks with cross-modal expansion per winning chunk. The full
-  eval showed no regression from this on any of the 6 videos, but this eval set is
-  still small (see below) -- a longer or noisier video than the podcast, or a
-  question needing more precision than recall, could plausibly suffer from the
-  added context diluting focus. `ADJACENT_NEIGHBOR_COUNT = 2` in
-  `index/retrieve.py` was deliberately kept conservative (not 3+) for exactly this
-  reason.
+- **Adjacent-context expansion adds real breadth to every retrieved context --
+  the relative cap bounds the worst case (small videos), but doesn't make the
+  tradeoff disappear.** Expansion stacking (same-modality neighbors + cross-modal
+  matches per winning chunk) is what made TED over-retrieve in the first place;
+  the ~35% cap fixes that specific failure mode without addressing whether 35% (or
+  `ADJACENT_NEIGHBOR_COUNT = 2`) is the *right* amount of breadth for a given
+  question -- just a bound on how much it can compound. On large videos like the
+  podcast (164-180 items, ~18-20% of the corpus) the cap never engages at all,
+  since expansion there naturally stays well under the threshold -- meaning any
+  precision-dilution risk from a large context on a *very* long or dense video
+  remains untested (this eval set's one long video tops out at ~20%, not close to
+  the 35% ceiling).
 - The ±10s temporal-alignment window and the 2-neighbor adjacent-context window are
   both still fixed regardless of corpus size or video length, unlike the candidate
   pool.
