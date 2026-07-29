@@ -4,18 +4,21 @@ that cosine similarity misses when the right passage phrases things very
 differently than the question does -- at the cost of only being cheap
 enough to run on a narrowed candidate set, not the whole index."""
 
-from sentence_transformers import CrossEncoder
-
 from index.build_index import IndexItem
 
 RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
-_model: CrossEncoder | None = None
+_model = None
 
 
-def _get_model() -> CrossEncoder:
+def _get_model():
+    # Imported lazily -- sentence-transformers pulls in torch/transformers,
+    # which should only load if reranking is actually used (rerank is off
+    # by default; see README).
     global _model
     if _model is None:
+        from sentence_transformers import CrossEncoder
+
         _model = CrossEncoder(RERANK_MODEL)
     return _model
 

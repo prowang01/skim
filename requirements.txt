@@ -3,4 +3,6 @@ faster-whisper==1.2.1
 openai==2.50.0
 python-dotenv==1.2.2
 numpy==2.4.6
+
+# optional: only imported if SKIM_ENABLE_RERANK=true (off by default, see README)
 sentence-transformers==5.6.1
