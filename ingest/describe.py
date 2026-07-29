@@ -62,12 +62,12 @@ def describe_frames(frames: list[Frame]) -> list[FrameDescription]:
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     content = [{"type": "text", "text": f"Here are {len(frames)} frames from a video, in order."}]
-    for i in range(len(frames)):
+    for i, frame in enumerate(frames):
         content.append({"type": "text", "text": f"Frame index {i}:"})
         content.append(
             {
                 "type": "image_url",
-                "image_url": {"url": _encode_image(frames[i].path), "detail": "high"},
+                "image_url": {"url": _encode_image(frame.path), "detail": "high"},
             }
         )
 

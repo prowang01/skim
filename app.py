@@ -1,5 +1,6 @@
-"""Palier 3: upload an mp4, transcribe its speech, extract + describe key
-visual frames, index everything, and chat with retrieval-driven answers."""
+"""Streamlit UI: upload an mp4, transcribe its speech, extract + describe
+key visual frames, index everything, and chat with retrieval-driven
+answers."""
 
 import tempfile
 from pathlib import Path
@@ -20,10 +21,9 @@ load_dotenv()
 st.set_page_config(page_title="Skim — chat with a video's speech and visuals")
 st.title("Skim")
 st.caption(
-    "Palier 3 (retrieval): upload a talking-style video (tutorial, talk, "
-    "interview) and ask questions about what was said and shown. Each question "
-    "retrieves the relevant moments instead of using the whole video, and "
-    "answers cite [mm:ss] timestamps."
+    "Upload a talking-style video (tutorial, talk, interview) and ask questions "
+    "about what was said and shown. Each question retrieves the relevant moments "
+    "instead of using the whole video, and answers cite [mm:ss] timestamps."
 )
 
 uploaded_file = st.file_uploader("Upload an .mp4 file", type=["mp4"])

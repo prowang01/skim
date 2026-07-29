@@ -1,10 +1,10 @@
-"""Chat over a video's content. Palier 3: retrieval, not dump -- each
-question retrieves the most relevant transcript segments + frame
-descriptions, temporally aligned so the model can reason about actions
-(what's said + what's shown together), not just describe frames in
+"""Chat over a video's content: fuses retrieved transcript segments and
+frame descriptions, temporally aligned, so the model reasons about actions
+(what's said + what's shown together) rather than describing frames in
 isolation."""
 
 import os
+
 from openai import OpenAI
 
 from index.build_index import IndexItem
@@ -50,6 +50,7 @@ def _format_timestamp(seconds: float) -> str:
 
 
 def format_context(items: list[IndexItem]) -> str:
+    """Render retrieved items as timestamped, source-tagged lines for the prompt."""
     if not items:
         return "(nothing retrieved)"
 

@@ -4,6 +4,7 @@ before Palier 3 added retrieval. Used only to measure how much retrieval
 and the Palier 4 blind-spot polish actually improved things."""
 
 import os
+
 from openai import OpenAI
 
 from index.build_index import Index

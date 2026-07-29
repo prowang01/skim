@@ -39,6 +39,8 @@ def build_index(
     segments: list[Segment],
     frame_descriptions: list[FrameDescription],
 ) -> Index:
+    """Embed transcript segments and frame descriptions into a single
+    searchable index."""
     items = [IndexItem(kind="audio", timestamp=s.start, text=s.text) for s in segments]
     items += [
         IndexItem(kind="visual", timestamp=f.timestamp, text=f.description)

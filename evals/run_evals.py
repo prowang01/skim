@@ -2,7 +2,7 @@
 (dump-everything) baseline against evals/dataset.json, grade both with an
 LLM judge, and print a comparison.
 
-Usage: python evals/run_evals.py
+Usage: python -m evals.run_evals
 """
 
 import json
@@ -60,6 +60,7 @@ JUDGE_SCHEMA = {
 
 
 def judge(question: str, expected: str, actual: str) -> dict:
+    """Grade an answer against the expected answer; returns {verdict, reasoning}."""
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     response = client.chat.completions.create(
         model=JUDGE_MODEL,
@@ -79,6 +80,8 @@ def judge(question: str, expected: str, actual: str) -> dict:
 
 
 def ingest_video(video_path: str):
+    """Run the full ingestion pipeline (audio, transcript, frames,
+    descriptions) and build the semantic index for one video."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
         audio_path = tmp_path / "audio.wav"
@@ -126,6 +129,8 @@ def print_summary(results: list[dict]) -> None:
 
 
 def run() -> list[dict]:
+    """Run every question in the dataset through both systems, grade both,
+    write evals/results.json, and print the score breakdown."""
     dataset = json.loads(DATASET_PATH.read_text())
     results = []
 

@@ -1,6 +1,7 @@
 """Speech-to-text transcription via faster-whisper (local, CPU)."""
 
 from dataclasses import dataclass
+
 from faster_whisper import WhisperModel
 
 DEFAULT_MODEL_SIZE = "small"
