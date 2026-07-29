@@ -16,10 +16,12 @@ This is **Palier 5** of a larger plan (see `videolens-spec.md`): retrieve-then-r
 Palier 1 was audio-only; Palier 2 added visual descriptions but dumped everything into
 every question; Palier 3 added retrieval + temporal fusion; Palier 4 added blind-spot
 honesty and an eval harness comparing this system against a naive dump-everything
-baseline. Palier 5 adds a two-stage retrieval pipeline (fast bi-encoder search, then a
-local cross-encoder rerank), built and tuned directly against what the Palier 4 evals
-found broken at scale. Each palier is meant to be a complete, working project on its
-own — this one is it for now.
+baseline. Palier 5 adds an optional two-stage retrieval pipeline (fast bi-encoder
+search, then a local cross-encoder rerank) built and tuned directly against what the
+Palier 4 evals found broken at scale -- **off by default** (`SKIM_ENABLE_RERANK=true`
+to try it), since the eval suite showed no net improvement over plain adaptive top-k;
+see Design decisions and Eval results for the full story. Each palier is meant to be a
+complete, working project on its own — this one is it for now.
 
 ## How it works
 
@@ -39,18 +41,21 @@ own — this one is it for now.
    `text-embedding-3-small` in one batched call and kept as an in-memory numpy matrix
    of normalized vectors, alongside a parallel list of `{kind, timestamp, text}`
    (`index/build_index.py`).
-6. **Retrieval, two stages:** Stage 1, a bi-encoder (embedding cosine similarity)
-   casts a wide net of candidate_k items -- audio and visual mixed together --
-   sized adaptively from corpus size (`clamp(round(sqrt(n_items) * 6.0), 40, 200)`).
-   Stage 2, a local cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, via
-   `sentence-transformers` -- no API key, runs on CPU) re-scores every candidate
-   jointly against the question and keeps the best 8 (`index/rerank.py`). Each
-   winning chunk is then *expanded* with any chunk of the *other* modality within a
-   ±10s time window, even if that chunk alone wouldn't have matched the question's
-   wording. Each item is also checked for isolation: if the nearest chunk of the
-   *other* modality is more than ~20s away, the item is flagged (e.g. "no visual
-   context within 45s") so the model has a computed signal for a possible blind spot
-   instead of having to judge raw timestamp gaps itself (`index/retrieve.py`).
+6. **Retrieval:** by default, a bi-encoder (embedding cosine similarity) picks the
+   top-k most relevant chunks -- audio and visual mixed together -- with k adaptive
+   to corpus size (`clamp(round(sqrt(n_items) * 1.4), 6, 40)`). **Optionally**
+   (`SKIM_ENABLE_RERANK=true`, off by default -- see Design decisions for why), a
+   two-stage pipeline replaces this: Stage 1 casts a wider adaptive candidate net
+   (`clamp(round(sqrt(n_items) * 6.0), 40, 200)`), then Stage 2, a local
+   cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, via `sentence-transformers`
+   -- no API key, runs on CPU) re-scores every candidate jointly against the
+   question and keeps the best 8 (`index/rerank.py`). Either way, each winning chunk
+   is then *expanded* with any chunk of the *other* modality within a ±10s time
+   window, even if that chunk alone wouldn't have matched the question's wording.
+   Each item is also checked for isolation: if the nearest chunk of the *other*
+   modality is more than ~20s away, the item is flagged (e.g. "no visual context
+   within 45s") so the model has a computed signal for a possible blind spot instead
+   of having to judge raw timestamp gaps itself (`index/retrieve.py`).
 7. The retrieved, temporally-aligned, gap-flagged items are sorted chronologically
    and placed in an LLM's system prompt, which explicitly instructs it to: treat
    close-in-time audio/visual lines as the same moment and infer what's being *done*;
@@ -108,6 +113,15 @@ own — this one is it for now.
   after directly comparing them on the hardest eval case: L-12-v2 showed no
   improvement (see Eval results) while being slower, so there was no reason to pay
   for the bigger model.
+- **Rerank is a feature flag, off by default -- shipped code isn't the same as
+  proven-better code.** Re-running the full eval suite with reranking enabled
+  scored 11.5/15 against 12.0/15 for plain adaptive top-k -- a wash at best, not a
+  win, and it adds a heavy `torch`/`sentence-transformers` dependency for that. It
+  stays in the codebase (`SKIM_ENABLE_RERANK=true` to try it) because the
+  investigation it enabled was valuable -- it's what surfaced the third,
+  narrative-structure failure mode in Eval results -- but "instructive to build" and
+  "worth defaulting on" are different bars, and this doesn't clear the second one
+  yet.
 - **Retrieve-then-expand for fusion, not retrieve-then-dump.** Ranking audio and
   visual chunks purely by semantic similarity to the question tends to miss frame
   descriptions that don't share the question's vocabulary (e.g. "shows 4 egg yolks
@@ -143,6 +157,13 @@ different narrow relationship topic) added specifically to stress-test retrieval
 scale with needle-in-haystack questions. 15 questions total across factual recall,
 cross-modal fusion, reasoning, not-in-video honesty, motion blind-spot honesty, and
 needle-in-haystack recall. Full detail in `evals/results.json`.
+
+**Note on what ships by default:** the table below was run with
+`SKIM_ENABLE_RERANK=true`, to evaluate the rerank stage itself. The system's actual
+default (`SKIM_ENABLE_RERANK` unset) is plain adaptive top-k, which scored *better*
+on this same eval (12.0/15, see the three-stage journey below) -- rerank is
+documented here because of what building and testing it revealed, not because it's
+what ships.
 
 ```
 video                     retrieval          naive
@@ -329,8 +350,10 @@ streamlit run app.py
 ```
 
 The first transcription downloads the `small` faster-whisper model (~500MB) to your
-local Hugging Face cache; subsequent runs reuse it. The first retrieval likewise
-downloads the `ms-marco-MiniLM-L-6-v2` cross-encoder (~90MB) to the same cache.
+local Hugging Face cache; subsequent runs reuse it. Rerank is off by default -- set
+`SKIM_ENABLE_RERANK=true` in `.env` to turn it on (see `.env.example`), which
+downloads the `ms-marco-MiniLM-L-6-v2` cross-encoder (~90MB) to the same cache on
+first use.
 
 To run the eval suite (needs your own video files under `evals/videos/` matching
 `evals/dataset.json`; videos are gitignored and not included in this repo):

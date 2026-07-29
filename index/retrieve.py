@@ -11,14 +11,25 @@ from openai import OpenAI
 from index.build_index import Index, IndexItem, EMBEDDING_MODEL
 from index.rerank import rerank
 
-# Stage 1 (bi-encoder): cast a wide net. Sized from real rank data, not the
-# "40-50" ballpark that would be reasonable for a smaller failure -- on the
-# 911-item podcast eval video, one correct passage ranked #129 by cosine
-# similarity alone. A flat top-50 candidate pool would never even contain
-# it, and a cross-encoder can only re-rank candidates it receives -- it
-# can't rescue something Stage 1 never fetched. Running locally (no API
-# cost), a wider net only costs a bit of CPU time, so we can afford to scale
-# further than the final top-k ever could.
+# Cross-encoder rerank is opt-in (see _rerank_enabled) -- the eval suite
+# showed no net improvement over plain adaptive top-k (11.5/15 vs 12.0/15)
+# and it pulls in a heavy torch/sentence-transformers dependency, so it
+# defaults OFF. Set SKIM_ENABLE_RERANK=true to turn it on. See README
+# "Design decisions" and "Eval results" for the full before/after.
+RERANK_ENV_VAR = "SKIM_ENABLE_RERANK"
+
+# Default path (rerank disabled): a single adaptive top-k, the Palier 4
+# fix. Tuned on real rank data -- a fixed k=6 left correct passages ranked
+# as low as #18-23 out of ~900 on a large multi-topic video.
+MIN_TOP_K = 6
+MAX_TOP_K = 40
+TOP_K_SQRT_FACTOR = 1.4
+
+# Opt-in path (rerank enabled): Stage 1 (bi-encoder) casts a wider net,
+# sized from real rank data -- on the 911-item podcast eval video, one
+# correct passage ranked #129 by cosine similarity alone, and a cross-
+# encoder can only re-rank candidates it receives. Running locally (no API
+# cost), a wider net only costs a bit of CPU time.
 CANDIDATE_MIN_K = 40
 CANDIDATE_MAX_K = 200
 CANDIDATE_SQRT_FACTOR = 6.0
@@ -32,13 +43,24 @@ TIME_WINDOW_SECONDS = 10.0
 GAP_FLAG_THRESHOLD_SECONDS = 20.0
 
 
+def _rerank_enabled() -> bool:
+    return os.environ.get(RERANK_ENV_VAR, "false").strip().lower() in ("1", "true", "yes")
+
+
+def _default_top_k(n_items: int) -> int:
+    """Scale k with corpus size instead of a fixed constant (rerank-disabled
+    default path)."""
+    return int(np.clip(round((n_items**0.5) * TOP_K_SQRT_FACTOR), MIN_TOP_K, MAX_TOP_K))
+
+
 def _default_candidate_k(n_items: int) -> int:
-    """Scale the Stage 1 candidate pool with corpus size. sqrt growth raises
-    it for larger corpora while tapering off (a 10,000-item video doesn't
-    get a 2,000-item candidate pool) -- clamped to [CANDIDATE_MIN_K,
-    CANDIDATE_MAX_K] so tiny videos don't over-fetch and huge ones stay
-    bounded well short of "most of the corpus", which would erode the whole
-    point of narrowing before the (still real, if free) cost of reranking."""
+    """Scale the Stage 1 candidate pool with corpus size (rerank-enabled
+    path). sqrt growth raises it for larger corpora while tapering off (a
+    10,000-item video doesn't get a 2,000-item candidate pool) -- clamped to
+    [CANDIDATE_MIN_K, CANDIDATE_MAX_K] so tiny videos don't over-fetch and
+    huge ones stay bounded well short of "most of the corpus", which would
+    erode the whole point of narrowing before the (still real, if free)
+    cost of reranking."""
     return int(np.clip(round((n_items**0.5) * CANDIDATE_SQRT_FACTOR), CANDIDATE_MIN_K, CANDIDATE_MAX_K))
 
 
@@ -110,20 +132,27 @@ def retrieve(
     window: float = TIME_WINDOW_SECONDS,
     gap_threshold: float = GAP_FLAG_THRESHOLD_SECONDS,
 ) -> list[IndexItem]:
-    """Two-stage retrieval: a bi-encoder (embedding cosine similarity) casts
-    a wide net of candidate_k items, then a local cross-encoder reranks
-    those candidates against the question and keeps the best final_k. The
-    winners are then temporally aligned with same-moment context from the
-    other modality, and flagged if isolated (no nearby context at all) as
-    possible blind spots.
+    """Retrieve the most relevant chunks for a question, temporally align
+    them with same-moment context from the other modality, and flag any
+    that remain isolated (no nearby context at all) as possible blind spots.
 
-    candidate_k defaults to a corpus-size-adaptive value (see
-    _default_candidate_k) -- pass an explicit value to override."""
+    Default (SKIM_ENABLE_RERANK unset/false): a single adaptive top-k over
+    the bi-encoder ranking (see _default_top_k) -- the proven Palier 4 path.
+
+    Opt-in (SKIM_ENABLE_RERANK=true): two-stage retrieval -- the bi-encoder
+    casts a wide net of candidate_k items (see _default_candidate_k), then a
+    local cross-encoder reranks those candidates and keeps the best
+    final_k. Not on by default; see README for why."""
     if not index.items:
         return []
-    if candidate_k is None:
-        candidate_k = _default_candidate_k(len(index.items))
-    candidates = _top_k(index, question, candidate_k)
-    top = rerank(question, candidates, final_k)
+
+    if _rerank_enabled():
+        if candidate_k is None:
+            candidate_k = _default_candidate_k(len(index.items))
+        candidates = _top_k(index, question, candidate_k)
+        top = rerank(question, candidates, final_k)
+    else:
+        top = _top_k(index, question, _default_top_k(len(index.items)))
+
     expanded = _expand_with_temporal_neighbors(index, top, window)
     return _annotate_gaps(index, expanded, gap_threshold)
