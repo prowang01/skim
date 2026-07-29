@@ -2,17 +2,18 @@
 
 Chat with a video's spoken *and* visual content. Upload an `.mp4`, get a timestamped
 transcript plus descriptions of key visual frames, and ask questions in a chat box —
-answers cite the `[mm:ss]` timestamps they're based on, whether that's something said
-or something shown.
+each question retrieves the relevant moments (not the whole video) and answers cite
+the `[mm:ss]` timestamps they're based on, whether that's something said or shown.
 
 **Scope decision:** built for talking-style videos — tutorials, talks, interviews,
 lectures — where the meaning lives mostly in audio plus a few key visuals. Not built
 for fast-motion or sports footage.
 
-This is **Palier 2** of a larger plan (see `videolens-spec.md`): audio + visual
-understanding. Palier 1 was audio-only. Later paliers add real retrieval (embeddings +
-semantic search instead of dumping the full context) and evals. Each palier is meant
-to be a complete, working project on its own — this one is it for now.
+This is **Palier 3** of a larger plan (see `videolens-spec.md`): retrieval + smarter
+fusion. Palier 1 was audio-only; Palier 2 added visual descriptions but still dumped
+the whole transcript + all frames into every question. Palier 4 (blind-spot detection
+logic + evals) is next. Each palier is meant to be a complete, working project on its
+own — this one is it for now.
 
 ## How it works
 
@@ -22,52 +23,71 @@ to be a complete, working project on its own — this one is it for now.
 3. **ffmpeg scene detection** (`select='gt(scene,0.4)'`) captures a frame only when
    the image changes significantly, hard-capped at ~25 frames sampled uniformly
    across all detected changes if there are more. The video's opening frame is
-   always included too, since the scene filter only fires on transitions and would
-   otherwise miss it. If fewer than 3 scene changes are detected (e.g. a static
-   talking-head video), uniformly time-spaced frames fill in so the visual index is
-   never empty (`ingest/frames.py`).
+   always included too, and a uniform-time-sampling fallback fills in if too few
+   scene changes are detected, so the visual index is never empty
+   (`ingest/frames.py`).
 4. **GPT-4o** describes all sampled frames in a single batched vision call —
-   transcribing any on-screen text/numbers verbatim — and returns one description
-   per frame via structured output (`ingest/describe.py`).
-5. The transcript segments and frame descriptions are merged into one context, sorted
-   chronologically and tagged `(audio)` / `(visual)`, and placed in an LLM's system
-   prompt. Each chat question is answered against that fused context, citing
-   `[mm:ss]` timestamps and fusing both sources when a question needs both
+   transcribing any on-screen text/numbers verbatim — via structured output
+   (`ingest/describe.py`).
+5. **Indexing:** every transcript segment and frame description is embedded with
+   `text-embedding-3-small` in one batched call and kept as an in-memory numpy matrix
+   of normalized vectors, alongside a parallel list of `{kind, timestamp, text}`
+   (`index/build_index.py`).
+6. **Retrieval:** each question is embedded and compared by cosine similarity against
+   the index to get the top-k most relevant chunks — audio and visual mixed
+   together, ranked purely by relevance. Each retrieved chunk is then *expanded*
+   with any chunk of the *other* modality within a ±10s time window, even if that
+   chunk alone wouldn't have matched the question's wording — this is what lets
+   "look at the screen" (audio) get paired with the frame that actually shows what's
+   on screen, and lets the model reason about the two together
+   (`index/retrieve.py`).
+7. The retrieved, temporally-aligned items are sorted chronologically and placed in
+   an LLM's system prompt, which explicitly instructs it to treat close-in-time
+   audio/visual lines as the same moment and infer what's being *done* — not just
+   describe the frame in isolation. It also cites `[mm:ss]` timestamps and is honest
+   when the retrieved excerpt (not the full video) doesn't contain the answer
    (`qa/answer.py`).
-6. Streamlit (`app.py`) wires this into an upload → transcript + frames → chat UI.
+8. Streamlit (`app.py`) wires this into an upload → transcript + frames → chat UI,
+   with an expander showing exactly what was retrieved for each question.
 
 ## Design decisions
 
 - **faster-whisper over the OpenAI Whisper API.** Runs locally on CPU (built/tested
-  on an Apple M4 Pro), so there's no per-minute transcription cost and no dependency
-  on an API key for the transcription step — only the vision/chat steps need
-  `OPENAI_API_KEY`.
-- **Scene-detection sampling, not 1 frame/sec.** Bounds cost/latency regardless of
-  video length — a hard cap on frames, not a hard cap on video duration. Frames
-  beyond the cap are sampled uniformly across all detected scenes rather than just
-  taking the first N, so coverage stays spread across the whole video.
-- **One batched vision call, not one per frame.** Describing 25 frames as 25
-  separate GPT-4o requests would pay the fixed per-request overhead (repeated system
-  prompt tokens, latency) 25 times over. Sending all frames in a single request with
-  structured JSON output is both cheaper and simpler to parse reliably.
-- **Dump the whole fused context, no retrieval — for now.** Palier 2 is still the
-  simplest thing that works: transcript + frame descriptions both fit in context for
-  reasonably-sized videos. Retrieval (embed + search relevant chunks instead of
-  dumping everything) is Palier 3.
-- **Audio-first, visual as a fusion source.** The transcript is the map of the video;
-  frame descriptions are pulled in as a second timestamped source rather than
-  replacing audio, since spoken content still carries most of the meaning in
-  talking-style videos.
-- **Honest about stills, not motion.** Frame descriptions come from sampled still
-  images, not continuous video, so the system prompt tells the model to say so when
-  a question depends on motion/speed rather than guess from a snapshot. (Dedicated
-  blind-spot *detection* logic is Palier 4 — this is just honest prompt wording for
-  now.)
+  on an Apple M4 Pro), so there's no per-minute transcription cost — only the
+  vision/embedding/chat steps need `OPENAI_API_KEY`.
+- **Scene-detection sampling, not 1 frame/sec.** A hard cap on frames, not a hard cap
+  on video duration, bounds cost/latency regardless of length.
+- **One batched vision call, not one per frame; one batched embedding call, not one
+  per chunk.** Both the frame descriptions and the index embeddings are computed in
+  a single API call per video — avoids paying fixed per-request overhead dozens of
+  times over, and keeps cost negligible even as a video grows.
+- **Plain numpy over FAISS/a vector DB.** At the scale of one video (dozens of
+  chunks), a `(n, 1536)` matrix and a single matrix-vector dot product for cosine
+  similarity is simpler and just as fast as any dedicated index — no DB rabbit hole.
+- **Retrieval, not dump.** This is the core change from Palier 2: only the top-k
+  chunks relevant to a specific question go into the prompt, not the entire
+  transcript and all frame descriptions. This is what actually stops the design
+  from breaking down on longer videos, and it's the difference between "a script"
+  and a RAG system.
+- **Retrieve-then-expand for fusion, not retrieve-then-dump.** Ranking audio and
+  visual chunks purely by semantic similarity to the question tends to miss frame
+  descriptions that don't share the question's vocabulary (e.g. "shows 4 egg yolks
+  on screen" vs. a question like "what are the exact quantities") even when they're
+  exactly the moment being asked about. Expanding each retrieved chunk with
+  same-time-window chunks from the other modality fixes this without expanding the
+  whole context — it's targeted, not a second dump.
+- **Honest about stills, not motion, and about being an excerpt.** Frame
+  descriptions come from sampled stills, not continuous video, so the prompt says so
+  for motion/speed questions. And because retrieval means the model no longer sees
+  the whole video, the prompt also tells it the retrieved excerpt might genuinely be
+  incomplete — it shouldn't assume it saw everything. (Dedicated blind-spot
+  *detection* logic and evals to measure this against the Palier-1 baseline are
+  Palier 4.)
 
 ## Limitations
 
-- No retrieval yet — the whole fused context goes into every question, which won't
-  scale to very long videos (context window limits, cost, latency).
+- Retrieval is still simple: fixed top-k (6) and a fixed ±10s alignment window, not
+  adapted to video length or content density.
 - Visual understanding is frame-sampling based: up to ~25 stills per video, so
   anything that happens between sampled frames (or during fast motion) may be missed
   entirely.
@@ -79,6 +99,9 @@ to be a complete, working project on its own — this one is it for now.
   or unusual-sounding audio.
 - Frame descriptions are only as good as GPT-4o's read of the image — small or
   low-contrast on-screen text may still be misread.
+- No evals yet — Palier 3's retrieval/fusion quality has been spot-checked manually,
+  not measured against a hand-built test set. That comparison (vs. the Palier-1
+  dump-everything baseline) is Palier 4.
 
 ## Run locally
 

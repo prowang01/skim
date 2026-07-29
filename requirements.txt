@@ -2,3 +2,4 @@ streamlit==1.60.0
 faster-whisper==1.2.1
 openai==2.50.0
 python-dotenv==1.2.2
+numpy==2.4.6
