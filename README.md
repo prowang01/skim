@@ -12,12 +12,14 @@ lectures — where the meaning lives mostly in audio plus a few key visuals. Not
 for fast-motion or sports footage (see Limitations and Eval results below for exactly
 how it handles that case when asked anyway).
 
-This is **Palier 4** of a larger plan (see `videolens-spec.md`): blind-spot awareness
-and evals. Palier 1 was audio-only; Palier 2 added visual descriptions but dumped
-everything into every question; Palier 3 added retrieval + temporal fusion. Palier 4
-adds explicit honesty about what the system can't reliably answer, plus a small eval
-harness comparing this system against the Palier-1/2-style naive baseline. Each palier
-is meant to be a complete, working project on its own — this one is it for now.
+This is **Palier 5** of a larger plan (see `videolens-spec.md`): retrieve-then-rerank.
+Palier 1 was audio-only; Palier 2 added visual descriptions but dumped everything into
+every question; Palier 3 added retrieval + temporal fusion; Palier 4 added blind-spot
+honesty and an eval harness comparing this system against a naive dump-everything
+baseline. Palier 5 adds a two-stage retrieval pipeline (fast bi-encoder search, then a
+local cross-encoder rerank), built and tuned directly against what the Palier 4 evals
+found broken at scale. Each palier is meant to be a complete, working project on its
+own — this one is it for now.
 
 ## How it works
 
@@ -37,18 +39,18 @@ is meant to be a complete, working project on its own — this one is it for now
    `text-embedding-3-small` in one batched call and kept as an in-memory numpy matrix
    of normalized vectors, alongside a parallel list of `{kind, timestamp, text}`
    (`index/build_index.py`).
-6. **Retrieval:** each question is embedded and compared by cosine similarity against
-   the index to get the top-k most relevant chunks — audio and visual mixed
-   together, ranked purely by relevance. k is adaptive, not fixed: it scales with
-   corpus size (`k = clamp(round(sqrt(n_items) * 1.4), 6, 40)`), so a 20-item short
-   clip and a 900-item hour-long video don't get the same retrieval budget. Each
-   retrieved chunk is then *expanded*
-   with any chunk of the *other* modality within a ±10s time window, even if that
-   chunk alone wouldn't have matched the question's wording. Each item is also
-   checked for isolation: if the nearest chunk of the *other* modality is more than
-   ~20s away, the item is flagged (e.g. "no visual context within 45s") so the model
-   has a computed signal for a possible blind spot instead of having to judge raw
-   timestamp gaps itself (`index/retrieve.py`).
+6. **Retrieval, two stages:** Stage 1, a bi-encoder (embedding cosine similarity)
+   casts a wide net of candidate_k items -- audio and visual mixed together --
+   sized adaptively from corpus size (`clamp(round(sqrt(n_items) * 6.0), 40, 200)`).
+   Stage 2, a local cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`, via
+   `sentence-transformers` -- no API key, runs on CPU) re-scores every candidate
+   jointly against the question and keeps the best 8 (`index/rerank.py`). Each
+   winning chunk is then *expanded* with any chunk of the *other* modality within a
+   ±10s time window, even if that chunk alone wouldn't have matched the question's
+   wording. Each item is also checked for isolation: if the nearest chunk of the
+   *other* modality is more than ~20s away, the item is flagged (e.g. "no visual
+   context within 45s") so the model has a computed signal for a possible blind spot
+   instead of having to judge raw timestamp gaps itself (`index/retrieve.py`).
 7. The retrieved, temporally-aligned, gap-flagged items are sorted chronologically
    and placed in an LLM's system prompt, which explicitly instructs it to: treat
    close-in-time audio/visual lines as the same moment and infer what's being *done*;
@@ -83,16 +85,29 @@ is meant to be a complete, working project on its own — this one is it for now
   into the prompt, not the entire transcript and all frame descriptions. This is
   what stops the design from breaking down on longer videos, and it's the
   difference between "a script" and a RAG system.
-- **Adaptive top-k, sqrt-scaled with a floor and ceiling, not a fixed constant.**
-  A fixed k=6 was tuned on small test videos and confirmed to fail on a real
-  911-item, 9-topic video (see Eval results): correct passages ranked as low as
-  #18-23, beaten by unrelated segments sharing surface vocabulary with the
-  question. sqrt growth (`clamp(round(sqrt(n)*1.4), 6, 40)`) raises k for larger
-  corpora while tapering off -- a 10,000-item video still doesn't get k=350 -- so
-  cost stays bounded and small clips keep the original tested behavior (k=6 for
-  anything under ~20 items). The bounds themselves came from real rank data, not
-  a guess: 40 comfortably covers the #18-23 case with margin without drifting back
-  toward a full dump.
+- **Adaptive candidate pool, sqrt-scaled with a floor and ceiling, not a fixed
+  constant.** A fixed k=6 was tuned on small test videos and confirmed to fail on a
+  real 911-item, 9-topic video (see Eval results): correct passages ranked as low as
+  #18-129, beaten by unrelated segments sharing surface vocabulary with the
+  question. sqrt growth (`clamp(round(sqrt(n)*6.0), 40, 200)`) raises the Stage 1
+  candidate pool for larger corpora while tapering off -- a 10,000-item video
+  doesn't get a 2,000-item candidate pool -- so cost stays bounded. The bounds came
+  from real rank data, not a guess, and were revised upward once rerank entered the
+  picture: a plain "top 40-50" pool (the initially reasonable-sounding range) would
+  never have contained a passage ranked #129, and a cross-encoder can only re-rank
+  candidates it actually receives -- it can't rescue something Stage 1 never
+  fetched. Because Stage 2 runs locally with no API cost, casting a much wider net
+  than a pure bi-encoder top-k ever could only costs a bit of CPU time.
+- **Cross-encoder rerank, local, no new API dependency.** A bi-encoder embeds the
+  question and each chunk *separately* and compares vectors -- fast, but blind to
+  interactions between the two texts. A cross-encoder feeds the question and a
+  candidate through the model *together*, which is far more precise but too slow to
+  run over an entire corpus -- hence two stages: bi-encoder to narrow (cheap, wide),
+  cross-encoder to precisely re-score the narrowed set (precise, small).
+  `cross-encoder/ms-marco-MiniLM-L-6-v2` was chosen over the larger L-12-v2 variant
+  after directly comparing them on the hardest eval case: L-12-v2 showed no
+  improvement (see Eval results) while being slower, so there was no reason to pay
+  for the bigger model.
 - **Retrieve-then-expand for fusion, not retrieve-then-dump.** Ranking audio and
   visual chunks purely by semantic similarity to the question tends to miss frame
   descriptions that don't share the question's vocabulary (e.g. "shows 4 egg yolks
@@ -132,80 +147,112 @@ needle-in-haystack recall. Full detail in `evals/results.json`.
 ```
 video                     retrieval          naive
 basket_france_usa             3.0/3          3.0/3
-pasta                         1.0/2          1.0/2
-podcast                       3.0/4          3.5/4
-rice                          2.0/2          2.0/2
+pasta                         1.5/2          1.0/2
+podcast                       2.0/4          4.0/4
+rice                          1.5/2          2.0/2
 stock_exchange                1.5/2          1.5/2
-ted                           1.5/2          2.0/2
+ted                           2.0/2          2.0/2
 --------------------------------------------------
-TOTAL                       12.0/15        13.0/15
+TOTAL                       11.5/15        13.5/15
 
 category                  retrieval          naive
 blind_spot_motion             2.0/2          2.0/2
-cross_modal                    1.5/2         1.5/2
-factual                       2.0/3          2.0/3
-needle_haystack                3.0/4         3.5/4
-not_in_video                   1.5/2         2.0/2
-reasoning                     2.0/2          2.0/2
+cross_modal                   1.5/2          1.5/2
+factual                       2.5/3          2.0/3
+needle_haystack               2.0/4          4.0/4
+not_in_video                  2.0/2          2.0/2
+reasoning                     1.5/2          2.0/2
 --------------------------------------------------
-TOTAL                       12.0/15        13.0/15
+TOTAL                       11.5/15        13.5/15
 ```
 
-**These are the numbers after fixing the top-k issue this same round found** -- see
-the sequence below for the honest before/after, since the fix was designed and
-verified against this exact eval rather than shipped on theory.
+**These numbers are manually corrected after catching a judge misgrade -- see the
+eval-integrity note below before trusting any single run's raw output.** The full,
+honest three-stage journey on the podcast's needle-in-haystack score (same 15
+questions throughout the whole eval set; only the podcast score changed across
+retrieval changes):
 
-**First pass, fixed k=6: naive clearly won on the podcast (4.0/4 vs. 1.5/4)** -- the
-opposite of what retrieval was built to demonstrate. Root-caused by inspecting exactly
-what `index/retrieve.py` surfaced for the two worst questions: the real balloon-analogy
-passage (~25:20-25:34) and the real "feel the emotion first" explanation (~16:16-16:36)
-were never retrieved at all. Instead, top-6 surfaced lines like *"Why are you holding
-on?"* [01:19] and *"what am I really attaching myself to?"* [04:14] -- both from a
-**different expert's segment on a different topic**, pulled in purely for sharing
-surface vocabulary with the question. With ~900 short (~2s) fragments across 9 topics,
-several unrelated segments share enough relationship-vocabulary with a given question
-to out-rank the real answer in cosine similarity.
+```
+fixed k=6 (Palier 4):              1.5/4
+adaptive top-k (Palier 4, cont.):  3.0/4
+retrieve-then-rerank (Palier 5):   2.0/4   <- after correcting a judge misgrade (raw: 3.0/4)
+```
 
-**Fix: adaptive top-k** (see Design decisions) -- grounded in the actual rank of the
-correct passages, not guessed. Computing full similarity rankings (no cutoff) showed:
-the "unfinished business" quote was already rank #0/#2 (already fine at k=6 -- that
-question's earlier "partial" was really about a separately-chunked elaboration, not
-top-k); the "manifest love" explanation sat at rank #18/#23 (reachable with a larger
-k); the balloon analogy sat at rank **#129/#422 out of 911** (not reachable by any
-cost-aware k -- its wording, e.g. "tie it to my wrist," shares almost no vocabulary
-with the question, "analogy... holding on too tightly").
+**Fixed k=6:** naive clearly won (4.0/4 vs. 1.5/4). Root-caused: the real
+balloon-analogy passage (~25:20-25:34) and the real "feel the emotion first"
+explanation (~16:16-16:36) were never retrieved at all -- top-6 surfaced only lines
+from **other experts' unrelated segments** that happened to share surface
+vocabulary with the question.
 
-**After the fix: podcast retrieval improved from 1.5/4 to 3.0/4.** The
-"unfinished business" and "manifest love" questions now score correct/partial instead
-of partial/wrong, exactly matching the rank data's prediction. The balloon question is
-still wrong -- also exactly as predicted, since #422 is unreachable regardless of k.
-That's the honest ceiling of a top-k fix: it recovers recall that was *rankable but
-excluded*, not recall where the question and answer just don't share vocabulary at
-all. Closing that last gap needs a different lever (e.g. query rewriting/expansion, a
-cross-encoder rerank stage, or bigger chunks with more surrounding context) -- noted
-as a next step, not fixed here. Re-running the 5 short clips after the k change showed
-no regressions: one ted score moved from correct to partial, but the answer's actual
-content was unchanged between runs -- that's LLM-judge scoring noise at the margin,
-not a behavior change (confirmed by reading both answers directly).
+**Adaptive top-k** raised the podcast score to 3.0/4 by widening k enough to reach
+passages that were rankable but excluded (the "manifest love" explanation sat at
+rank #18-23; a wider k reached it). The balloon analogy, at rank #129-422, remained
+out of reach of any cost-aware k -- noted at the time as a distinct problem: its
+wording ("tie it to my wrist") shares almost no vocabulary with the question
+("analogy... holding on too tightly").
+
+**Retrieve-then-rerank was built specifically to fix the balloon case, and it
+partially did -- Stage 1 now correctly includes the passage (rank #129 is well
+within the new 181-item candidate pool for this corpus size), but Stage 2 still
+doesn't select it.** Both `ms-marco-MiniLM-L-6-v2` and the larger `L-12-v2` score
+the actual balloon narrative *lower* than a nearby meta-commentary line, *"he shares
+a powerful analogy about love and letting go"* [24:55] -- confirmed by directly
+comparing both models' scores on the same candidates. This is neither a top-k
+problem nor a vocabulary-overlap problem: it's a **third, distinct failure mode**.
+The line that announces an answer ("he shares a powerful analogy...") is genuinely
+the most *topically relevant* passage to the question -- it literally contains the
+word "analogy". Both cross-encoders, trained on query-passage relevance (MS-MARCO),
+correctly rank it highest by that standard. But topical relevance isn't the same
+thing as *where the answer's content lives* -- the actual balloon story is in the
+passages that follow, and neither cosine similarity nor a passage-relevance
+cross-encoder is built to bridge "this passage announces an answer" to "the answer
+is in the next few passages after it." The likely real fix, not implemented here:
+**adjacent-context / sentence-window retrieval** -- when a chunk is selected,
+automatically pull in a window of the chunks immediately following it (not just
+same-timestamp cross-modal chunks, which is what `index/retrieve.py` already does),
+since narrated stories/analogies are told in fragments across consecutive Whisper
+segments after an intro line, not in one self-contained chunk.
+
+**Eval-integrity note: a judge misgrade, caught by spot-checking, not by design.**
+The raw run scored the balloon question "correct" -- but reading the actual answer
+("the details of that analogy are not included... I cannot provide the exact
+analogy") against the actual expected answer (which describes the balloon/wrist
+details explicitly) shows the judge mis-graded an "I don't know" as if it matched an
+"unknown" expected answer, when the expected answer isn't "unknown" at all. Manually
+corrected to "wrong" in `evals/results.json`, with the original judge reasoning kept
+in the record for transparency. This is stronger than the previously-documented
+judge noise-at-the-margin (a correct/partial disagreement on an otherwise-right
+answer) -- this was a clear-cut error on a question where the answer's actual
+content plainly didn't match. Two other score changes this round (rice's MSG
+question, pasta's ingredients question) were checked the same way and found to be
+legitimate, minor partial-credit calls, not misgrades.
 
 Both blind-spot questions (fast break speed, specific dribble move) were answered
-honestly by both systems, unaffected by the retrieval change -- Part A's blind-spot
-prompt logic holds up. Both systems still miss the same pasta-sauce question; the eval
-process is what surfaced why (see Limitations).
+honestly by every system across every round -- Part A's blind-spot prompt logic has
+been unaffected by every retrieval change since. Both systems still miss the pasta
+bacon question for the unrelated, already-documented ingestion reason (see
+Limitations).
 
 ## Limitations
 
-- **Adaptive top-k closes part of the retrieval-at-scale gap, not all of it.** After
-  scaling k with corpus size (see Design decisions and Eval results), the podcast
-  video's needle-in-haystack score improved from 1.5/4 to 3.0/4 against naive's
-  3.5/4 -- better, not yet at parity. The remaining gap is a distinct problem from
-  top-k sizing: when a passage's actual wording shares almost no vocabulary with how
-  a question phrases the same idea (confirmed case: the correct answer ranked #422
-  out of 911 by cosine similarity), no cost-aware k reaches it. Closing that needs a
-  different lever -- query rewriting/expansion, a cross-encoder rerank stage, or
-  larger chunks with more surrounding context -- not just a bigger k.
+- **Retrieve-then-rerank closes part of the retrieval-at-scale gap, still not all of
+  it -- three distinct failure modes found so far, only some fixed.** (1) Fixed
+  top-k missing rankable-but-excluded passages -- fixed by adaptive top-k. (2) Pure
+  vocabulary mismatch between question and answer wording -- partially addressed:
+  a wider adaptive candidate pool now gets the passage *into* Stage 1, but (3) a
+  passage-relevance cross-encoder still isn't the right tool when the retrieved
+  passage that *announces* an answer scores higher than the passage that *contains*
+  it, because that's a narrative-structure problem, not a relevance-ranking one (see
+  Eval results for the full case study). Likely real fix: adjacent-context /
+  sentence-window retrieval, not a better reranker -- not yet implemented.
 - The ±10s temporal-alignment window is still fixed regardless of corpus size or
-  video length, unlike top-k.
+  video length, unlike the candidate pool.
+- **LLM-as-judge can clear-cut misgrade, not just disagree at the margin.** One eval
+  run scored an evasive "I don't know" answer as "correct" against an expected answer
+  that explicitly wasn't "unknown" -- caught only by manually reading the answer text
+  against the expected text, not by the automated score. Manually corrected in
+  `evals/results.json`; the harness has no automated safeguard against this yet, so
+  any single eval run's raw numbers should be spot-checked, not trusted blindly.
 - **Scene-change detection can structurally miss on-screen text that doesn't
   accompany a shot change.** Investigated a concrete failure during evals: the
   `pasta` video shows a "Bacon" on-screen text label for a full ~3 seconds
@@ -247,6 +294,15 @@ process is what surfaced why (see Limitations).
 
 Not implemented, just noted for later:
 
+- **Adjacent-context / sentence-window retrieval.** The likely real fix for the
+  balloon-analogy case in Eval results: when a chunk is selected (by rerank or
+  top-k), also pull in the next few consecutive chunks from the same modality, not
+  just same-timestamp chunks from the other modality (which is all `retrieve.py`
+  currently expands with). Narrated stories/analogies are told across several
+  consecutive short Whisper segments after an intro line, and that intro line is
+  often the one that scores highest for topical relevance -- pulling its neighbors
+  forward would surface the content the intro line is about, not just the
+  announcement of it.
 - **Adjustable answer depth.** Right now every answer is whatever length the LLM
   defaults to. Letting the user pick concise vs. detailed (e.g. a toggle or a
   system-prompt parameter) would help match the answer to the question -- a quick
@@ -273,7 +329,8 @@ streamlit run app.py
 ```
 
 The first transcription downloads the `small` faster-whisper model (~500MB) to your
-local Hugging Face cache; subsequent runs reuse it.
+local Hugging Face cache; subsequent runs reuse it. The first retrieval likewise
+downloads the `ms-marco-MiniLM-L-6-v2` cross-encoder (~90MB) to the same cache.
 
 To run the eval suite (needs your own video files under `evals/videos/` matching
 `evals/dataset.json`; videos are gitignored and not included in this repo):

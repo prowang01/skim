@@ -9,24 +9,37 @@ import numpy as np
 from openai import OpenAI
 
 from index.build_index import Index, IndexItem, EMBEDDING_MODEL
+from index.rerank import rerank
 
-MIN_TOP_K = 6
-MAX_TOP_K = 40
-TOP_K_SQRT_FACTOR = 1.4
+# Stage 1 (bi-encoder): cast a wide net. Sized from real rank data, not the
+# "40-50" ballpark that would be reasonable for a smaller failure -- on the
+# 911-item podcast eval video, one correct passage ranked #129 by cosine
+# similarity alone. A flat top-50 candidate pool would never even contain
+# it, and a cross-encoder can only re-rank candidates it receives -- it
+# can't rescue something Stage 1 never fetched. Running locally (no API
+# cost), a wider net only costs a bit of CPU time, so we can afford to scale
+# further than the final top-k ever could.
+CANDIDATE_MIN_K = 40
+CANDIDATE_MAX_K = 200
+CANDIDATE_SQRT_FACTOR = 6.0
+
+# Stage 2 (cross-encoder): once precisely re-scored, a small fixed number is
+# enough -- the point of reranking is that we no longer need to over-fetch
+# to compensate for cosine similarity's imprecision.
+FINAL_RERANK_K = 8
+
 TIME_WINDOW_SECONDS = 10.0
 GAP_FLAG_THRESHOLD_SECONDS = 20.0
 
 
-def _default_top_k(n_items: int) -> int:
-    """Scale k with corpus size instead of a fixed constant. A fixed k=6 was
-    tuned on small (dozens-of-items) test videos; on a 911-item, 9-topic
-    video it left correct passages ranked as low as #18-23 out of ~900,
-    beaten by unrelated segments that merely share surface vocabulary with
-    the question. sqrt growth raises k for larger corpora while tapering off
-    (a 10,000-item video doesn't get k=350) -- clamped to [MIN_TOP_K,
-    MAX_TOP_K] so tiny videos keep today's tested behavior and huge ones
-    stay cost-bounded rather than drifting back toward a full dump."""
-    return int(np.clip(round((n_items**0.5) * TOP_K_SQRT_FACTOR), MIN_TOP_K, MAX_TOP_K))
+def _default_candidate_k(n_items: int) -> int:
+    """Scale the Stage 1 candidate pool with corpus size. sqrt growth raises
+    it for larger corpora while tapering off (a 10,000-item video doesn't
+    get a 2,000-item candidate pool) -- clamped to [CANDIDATE_MIN_K,
+    CANDIDATE_MAX_K] so tiny videos don't over-fetch and huge ones stay
+    bounded well short of "most of the corpus", which would erode the whole
+    point of narrowing before the (still real, if free) cost of reranking."""
+    return int(np.clip(round((n_items**0.5) * CANDIDATE_SQRT_FACTOR), CANDIDATE_MIN_K, CANDIDATE_MAX_K))
 
 
 def _embed_query(question: str) -> np.ndarray:
@@ -92,20 +105,25 @@ def _annotate_gaps(index: Index, items: list[IndexItem], threshold: float) -> li
 def retrieve(
     index: Index,
     question: str,
-    k: int | None = None,
+    final_k: int = FINAL_RERANK_K,
+    candidate_k: int | None = None,
     window: float = TIME_WINDOW_SECONDS,
     gap_threshold: float = GAP_FLAG_THRESHOLD_SECONDS,
 ) -> list[IndexItem]:
-    """Retrieve the most relevant chunks for a question, temporally align
-    them with same-moment context from the other modality, and flag any
-    that remain isolated (no nearby context at all) as possible blind spots.
+    """Two-stage retrieval: a bi-encoder (embedding cosine similarity) casts
+    a wide net of candidate_k items, then a local cross-encoder reranks
+    those candidates against the question and keeps the best final_k. The
+    winners are then temporally aligned with same-moment context from the
+    other modality, and flagged if isolated (no nearby context at all) as
+    possible blind spots.
 
-    k defaults to a corpus-size-adaptive value (see _default_top_k) --
-    pass an explicit k to override."""
+    candidate_k defaults to a corpus-size-adaptive value (see
+    _default_candidate_k) -- pass an explicit value to override."""
     if not index.items:
         return []
-    if k is None:
-        k = _default_top_k(len(index.items))
-    top = _top_k(index, question, k)
+    if candidate_k is None:
+        candidate_k = _default_candidate_k(len(index.items))
+    candidates = _top_k(index, question, candidate_k)
+    top = rerank(question, candidates, final_k)
     expanded = _expand_with_temporal_neighbors(index, top, window)
     return _annotate_gaps(index, expanded, gap_threshold)
