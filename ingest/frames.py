@@ -36,7 +36,7 @@ def _extract_scene_frames(video_path: str, out_dir: Path) -> list[Frame]:
         [
             "ffmpeg", "-y", "-i", video_path,
             "-vf", f"select='gt(scene,{SCENE_THRESHOLD})',showinfo",
-            "-vsync", "vfr", "-q:v", "2",
+            "-vsync", "vfr", "-pix_fmt", "yuvj420p", "-q:v", "2",
             str(pattern),
         ],
         capture_output=True,
@@ -68,7 +68,7 @@ def _extract_uniform_frames(
         result = subprocess.run(
             [
                 "ffmpeg", "-y", "-ss", str(t), "-i", video_path,
-                "-frames:v", "1", "-q:v", "2",
+                "-frames:v", "1", "-pix_fmt", "yuvj420p", "-q:v", "2",
                 str(out_file),
             ],
             capture_output=True,
@@ -82,7 +82,7 @@ def _extract_uniform_frames(
 def _extract_first_frame(video_path: str, out_dir: Path) -> Frame | None:
     out_file = out_dir / "opening.jpg"
     result = subprocess.run(
-        ["ffmpeg", "-y", "-i", video_path, "-frames:v", "1", "-q:v", "2", str(out_file)],
+        ["ffmpeg", "-y", "-i", video_path, "-frames:v", "1", "-pix_fmt", "yuvj420p", "-q:v", "2", str(out_file)],
         capture_output=True,
         text=True,
     )

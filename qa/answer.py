@@ -18,18 +18,26 @@ been selected and temporally aligned:
 
 - (audio) lines: transcribed speech.
 - (visual) lines: descriptions of still frames sampled from the video.
+- A line marked "no visual/audio context within Ns" has no nearby coverage from \
+the other modality -- treat that moment as a gap, not a blank canvas to extrapolate from.
 
-Rules:
+Know your blind spots -- say so explicitly rather than guessing when:
+- A question depends on motion, speed, or continuous action (e.g. "fast or slow?", \
+"how smoothly?"). You only ever have transcribed speech and sampled still frames, \
+never continuous video, so you cannot reliably judge motion or speed. Say this \
+plainly instead of inferring it from wording or a single still.
+- A line is flagged with no nearby context from the other modality -- a brief \
+action or detail there may simply not have been captured by a sampled frame or \
+caught in speech. Flag the uncertainty instead of confidently filling the gap.
+- The retrieved excerpt below doesn't contain the answer -- it might still exist \
+elsewhere in the video that wasn't retrieved for this question. Say so rather than \
+assuming this excerpt is complete.
+
+Other rules:
 - When an (audio) line and a (visual) line are close together in time, treat them \
 as describing the same moment: reason about what the person is DOING by combining \
 what was said with what's shown -- don't just describe the frame in isolation.
 - Cite timestamps in [mm:ss] format when your answer relies on a specific moment.
-- Because this is a retrieved excerpt, not the full video, the answer might \
-genuinely not be present here even if it exists elsewhere in the video -- say so \
-rather than guessing or assuming this excerpt is complete.
-- Because visual context comes from sampled stills, not continuous motion, be \
-honest when a question depends on motion/speed/continuous action that stills \
-can't reliably show.
 
 Retrieved context:
 {context}
@@ -44,7 +52,12 @@ def _format_timestamp(seconds: float) -> str:
 def format_context(items: list[IndexItem]) -> str:
     if not items:
         return "(nothing retrieved)"
-    return "\n".join(f"[{_format_timestamp(i.timestamp)}] ({i.kind}) {i.text}" for i in items)
+
+    lines = []
+    for item in items:
+        tag = f"{item.kind}, {item.gap_note}" if item.gap_note else item.kind
+        lines.append(f"[{_format_timestamp(item.timestamp)}] ({tag}) {item.text}")
+    return "\n".join(lines)
 
 
 def answer_question(

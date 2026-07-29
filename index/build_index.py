@@ -21,6 +21,7 @@ class IndexItem:
     kind: str  # "audio" or "visual"
     timestamp: float
     text: str
+    gap_note: str | None = None  # set by retrieval when no opposite-modality item is nearby
 
 
 @dataclass

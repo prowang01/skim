@@ -1,0 +1,121 @@
+{
+  "videos": [
+    {
+      "id": "ted",
+      "path": "evals/videos/ted.mp4",
+      "description": "Matt Cutts TED talk, 'Try something new for 30 days' -- talking-head with occasional slides.",
+      "questions": [
+        {
+          "question": "How many words per day did the speaker need to write to finish a 50,000-word novel in 30 days?",
+          "expected": "1,667 words a day.",
+          "category": "factual"
+        },
+        {
+          "question": "What does the speaker say about the stock market?",
+          "expected": "Nothing -- the stock market is not mentioned anywhere in this video. The talk is about 30-day personal challenges (novel writing, photography, biking, climbing Kilimanjaro), not finance.",
+          "category": "not_in_video"
+        }
+      ]
+    },
+    {
+      "id": "rice",
+      "path": "evals/videos/rice.mp4",
+      "description": "Egg fried rice recipe video -- spoken steps plus on-screen ingredient-quantity text.",
+      "questions": [
+        {
+          "question": "How many cups of rice and how many eggs does she use?",
+          "expected": "2 cups of cold jasmine rice and 4 eggs (2 eggs per cup of rice). Stated in speech and shown on screen.",
+          "category": "cross_modal"
+        },
+        {
+          "question": "Does she use MSG in her seasoning?",
+          "expected": "No. She explicitly says she doesn't have MSG in this kitchen and doesn't use it, even though the on-screen seasoning graphic lists MSG as an optional ingredient. The spoken statement is what she actually did; the on-screen text is a general recipe option, not a report of what happened.",
+          "category": "reasoning"
+        }
+      ]
+    },
+    {
+      "id": "pasta",
+      "path": "evals/videos/pasta.mp4",
+      "description": "Silent-ish pasta cooking video -- no real narration, only background music; visual-only content.",
+      "questions": [
+        {
+          "question": "What ingredients make up the pasta sauce?",
+          "expected": "A carbonara-style sauce made from egg yolks and grated parmesan cheese, combined with cooked bacon (not minced meat).",
+          "category": "factual"
+        },
+        {
+          "question": "What does the cook say while preparing the dish?",
+          "expected": "Nothing meaningful -- there is no real spoken narration, only background music. Any transcribed 'speech' (e.g. repeated single-word sounds) is a transcription artifact from the music, not actual dialogue, and shouldn't be repeated as if it were something the cook said.",
+          "category": "reasoning"
+        }
+      ]
+    },
+    {
+      "id": "stock_exchange",
+      "path": "evals/videos/stock_exchange.mp4",
+      "description": "Animated explainer, 'How The Stock Exchange Works' -- conceptual narration with illustrative on-screen diagrams/examples.",
+      "questions": [
+        {
+          "question": "What does the DAX index track, and which companies are shown as examples of it in the video?",
+          "expected": "The DAX tracks the combined value of Germany's 30 biggest companies. The video's DAX board visual shows example company names including RWE, ALLIANZ, and BMW.",
+          "category": "cross_modal"
+        },
+        {
+          "question": "What is Apple's exact real-world share price according to this video?",
+          "expected": "Not stated -- the video never mentions Apple's real share price. It only uses illustrative, made-up example figures (like a fictional 'Taco Inc.' stock or a generic company-value example) to explain concepts, not real current market data for any specific real company.",
+          "category": "not_in_video"
+        }
+      ]
+    },
+    {
+      "id": "basket_france_usa",
+      "path": "evals/videos/basket_france_usa.mp4",
+      "description": "Olympic basketball final highlights, Team USA vs Team France (Paris 2024) -- fast-motion sports footage with play-by-play commentary.",
+      "questions": [
+        {
+          "question": "How fast is the fast break shown in this clip, in seconds?",
+          "expected": "Cannot be determined. The system only has sampled still frames and an audio commentary track, not continuous video, so it cannot measure how long a fast break takes -- it should say so rather than guess a number.",
+          "category": "blind_spot_motion"
+        },
+        {
+          "question": "What specific dribble move or footwork does the player use right before scoring?",
+          "expected": "Cannot be reliably determined. The commentary only says things like 'lovely dribble' without naming a specific move, and still frames can't capture continuous dribbling motion -- the system should admit it can't identify the exact move rather than inventing one.",
+          "category": "blind_spot_motion"
+        },
+        {
+          "question": "What was the final score, and who won the gold medal?",
+          "expected": "The United States won gold, beating France 98-87.",
+          "category": "factual"
+        }
+      ]
+    },
+    {
+      "id": "podcast",
+      "path": "evals/videos/podcast.mp4",
+      "description": "~32 minute compilation episode ('On Purpose' with Jay Shetty) -- 9 numbered segments, each a different named relationship expert addressing a different narrow topic. The long, multi-topic retrieval stress test.",
+      "questions": [
+        {
+          "question": "According to the psychotherapist in this video, what does she mean by 'we date our unfinished business'?",
+          "expected": "Lori Gottlieb explains that just as we bury unfinished emotional business from our past, we also unconsciously date that unfinished business -- e.g. if you grew up around someone neglectful, you may find yourself drawn to partners who repeat that same pattern.",
+          "category": "needle_haystack"
+        },
+        {
+          "question": "What does the neuroscientist in this video say about the right way to manifest love, in terms of emotion and events?",
+          "expected": "Dr. Joe Dispenza says we're conditioned to wait for an event/experience to happen before we let ourselves feel the emotion (closing the sense of lack). The healthier approach, he says, is to feel the emotion of already having that connection before the event actually happens.",
+          "category": "needle_haystack"
+        },
+        {
+          "question": "What analogy does the comedian and talk show host use to explain holding on too tightly in love?",
+          "expected": "James Corden compares clinging to a relationship to holding a balloon and refusing to ever let it go -- even tying it to your wrist so it 'can't disappear' -- as an illustration of unhealthy, fear-driven holding on.",
+          "category": "needle_haystack"
+        },
+        {
+          "question": "What does Radhi say about someone spending two hours with you versus fifteen minutes?",
+          "expected": "Radhi says we tend to assume the person who spends more time (e.g. two hours) values/loves us more than someone who only gives fifteen minutes -- but what actually matters is the quality/presence of that time, not the raw quantity. A present fifteen-minute interaction can be more meaningful than two distracted hours.",
+          "category": "needle_haystack"
+        }
+      ]
+    }
+  ]
+}

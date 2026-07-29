@@ -3,6 +3,7 @@ audio and visual context describing the same moment are fused together
 instead of surfaced as disconnected facts."""
 
 import os
+from dataclasses import replace
 
 import numpy as np
 from openai import OpenAI
@@ -11,6 +12,7 @@ from index.build_index import Index, IndexItem, EMBEDDING_MODEL
 
 TOP_K = 6
 TIME_WINDOW_SECONDS = 10.0
+GAP_FLAG_THRESHOLD_SECONDS = 20.0
 
 
 def _embed_query(question: str) -> np.ndarray:
@@ -54,15 +56,37 @@ def _expand_with_temporal_neighbors(
     return expanded
 
 
+def _nearest_gap(index: Index, item: IndexItem) -> float | None:
+    other_kind = "visual" if item.kind == "audio" else "audio"
+    gaps = [abs(c.timestamp - item.timestamp) for c in index.items if c.kind == other_kind]
+    return min(gaps) if gaps else None
+
+
+def _annotate_gaps(index: Index, items: list[IndexItem], threshold: float) -> list[IndexItem]:
+    """Flag items with no nearby context from the other modality, so the LLM
+    has a computed signal for "this moment might be a blind spot" instead of
+    having to judge raw timestamp gaps itself (which it's bad at)."""
+    annotated = []
+    for item in items:
+        gap = _nearest_gap(index, item)
+        other_kind = "visual" if item.kind == "audio" else "audio"
+        note = f"no {other_kind} context within {gap:.0f}s" if gap is not None and gap > threshold else None
+        annotated.append(replace(item, gap_note=note))
+    return annotated
+
+
 def retrieve(
     index: Index,
     question: str,
     k: int = TOP_K,
     window: float = TIME_WINDOW_SECONDS,
+    gap_threshold: float = GAP_FLAG_THRESHOLD_SECONDS,
 ) -> list[IndexItem]:
-    """Retrieve the most relevant chunks for a question, then temporally
-    align them with same-moment context from the other modality."""
+    """Retrieve the most relevant chunks for a question, temporally align
+    them with same-moment context from the other modality, and flag any
+    that remain isolated (no nearby context at all) as possible blind spots."""
     if not index.items:
         return []
     top = _top_k(index, question, k)
-    return _expand_with_temporal_neighbors(index, top, window)
+    expanded = _expand_with_temporal_neighbors(index, top, window)
+    return _annotate_gaps(index, expanded, gap_threshold)
