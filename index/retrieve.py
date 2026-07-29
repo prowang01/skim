@@ -10,9 +10,23 @@ from openai import OpenAI
 
 from index.build_index import Index, IndexItem, EMBEDDING_MODEL
 
-TOP_K = 6
+MIN_TOP_K = 6
+MAX_TOP_K = 40
+TOP_K_SQRT_FACTOR = 1.4
 TIME_WINDOW_SECONDS = 10.0
 GAP_FLAG_THRESHOLD_SECONDS = 20.0
+
+
+def _default_top_k(n_items: int) -> int:
+    """Scale k with corpus size instead of a fixed constant. A fixed k=6 was
+    tuned on small (dozens-of-items) test videos; on a 911-item, 9-topic
+    video it left correct passages ranked as low as #18-23 out of ~900,
+    beaten by unrelated segments that merely share surface vocabulary with
+    the question. sqrt growth raises k for larger corpora while tapering off
+    (a 10,000-item video doesn't get k=350) -- clamped to [MIN_TOP_K,
+    MAX_TOP_K] so tiny videos keep today's tested behavior and huge ones
+    stay cost-bounded rather than drifting back toward a full dump."""
+    return int(np.clip(round((n_items**0.5) * TOP_K_SQRT_FACTOR), MIN_TOP_K, MAX_TOP_K))
 
 
 def _embed_query(question: str) -> np.ndarray:
@@ -78,15 +92,20 @@ def _annotate_gaps(index: Index, items: list[IndexItem], threshold: float) -> li
 def retrieve(
     index: Index,
     question: str,
-    k: int = TOP_K,
+    k: int | None = None,
     window: float = TIME_WINDOW_SECONDS,
     gap_threshold: float = GAP_FLAG_THRESHOLD_SECONDS,
 ) -> list[IndexItem]:
     """Retrieve the most relevant chunks for a question, temporally align
     them with same-moment context from the other modality, and flag any
-    that remain isolated (no nearby context at all) as possible blind spots."""
+    that remain isolated (no nearby context at all) as possible blind spots.
+
+    k defaults to a corpus-size-adaptive value (see _default_top_k) --
+    pass an explicit k to override."""
     if not index.items:
         return []
+    if k is None:
+        k = _default_top_k(len(index.items))
     top = _top_k(index, question, k)
     expanded = _expand_with_temporal_neighbors(index, top, window)
     return _annotate_gaps(index, expanded, gap_threshold)

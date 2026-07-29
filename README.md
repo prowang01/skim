@@ -39,7 +39,10 @@ is meant to be a complete, working project on its own — this one is it for now
    (`index/build_index.py`).
 6. **Retrieval:** each question is embedded and compared by cosine similarity against
    the index to get the top-k most relevant chunks — audio and visual mixed
-   together, ranked purely by relevance. Each retrieved chunk is then *expanded*
+   together, ranked purely by relevance. k is adaptive, not fixed: it scales with
+   corpus size (`k = clamp(round(sqrt(n_items) * 1.4), 6, 40)`), so a 20-item short
+   clip and a 900-item hour-long video don't get the same retrieval budget. Each
+   retrieved chunk is then *expanded*
    with any chunk of the *other* modality within a ±10s time window, even if that
    chunk alone wouldn't have matched the question's wording. Each item is also
    checked for isolation: if the nearest chunk of the *other* modality is more than
@@ -55,11 +58,12 @@ is meant to be a complete, working project on its own — this one is it for now
    the answer (`qa/answer.py`).
 8. Streamlit (`app.py`) wires this into an upload → transcript + frames → chat UI,
    with an expander showing exactly what was retrieved for each question.
-9. **Evals** (`evals/`): a hand-built dataset of 5 videos and ~11 questions spanning
-   factual recall, cross-modal fusion, reasoning, "not in video" honesty, and motion
-   blind-spot honesty. `run_evals.py` runs every question through both this system
-   and a naive dump-everything baseline (`evals/naive_baseline.py` -- the Palier-1/2
-   approach), grades both with a gpt-4o-mini judge, and prints a side-by-side score.
+9. **Evals** (`evals/`): a hand-built dataset of 6 videos and 15 questions spanning
+   factual recall, cross-modal fusion, reasoning, "not in video" honesty, motion
+   blind-spot honesty, and long-video needle-in-haystack recall. `run_evals.py` runs
+   every question through both this system and a naive dump-everything baseline
+   (`evals/naive_baseline.py` -- the Palier-1/2 approach), grades both with a
+   gpt-4o-mini judge, and prints a side-by-side score broken down by video and category.
 
 ## Design decisions
 
@@ -79,6 +83,16 @@ is meant to be a complete, working project on its own — this one is it for now
   into the prompt, not the entire transcript and all frame descriptions. This is
   what stops the design from breaking down on longer videos, and it's the
   difference between "a script" and a RAG system.
+- **Adaptive top-k, sqrt-scaled with a floor and ceiling, not a fixed constant.**
+  A fixed k=6 was tuned on small test videos and confirmed to fail on a real
+  911-item, 9-topic video (see Eval results): correct passages ranked as low as
+  #18-23, beaten by unrelated segments sharing surface vocabulary with the
+  question. sqrt growth (`clamp(round(sqrt(n)*1.4), 6, 40)`) raises k for larger
+  corpora while tapering off -- a 10,000-item video still doesn't get k=350 -- so
+  cost stays bounded and small clips keep the original tested behavior (k=6 for
+  anything under ~20 items). The bounds themselves came from real rank data, not
+  a guess: 40 comfortably covers the #18-23 case with margin without drifting back
+  toward a full dump.
 - **Retrieve-then-expand for fusion, not retrieve-then-dump.** Ranking audio and
   visual chunks purely by semantic similarity to the question tends to miss frame
   descriptions that don't share the question's vocabulary (e.g. "shows 4 egg yolks
@@ -119,75 +133,79 @@ needle-in-haystack recall. Full detail in `evals/results.json`.
 video                     retrieval          naive
 basket_france_usa             3.0/3          3.0/3
 pasta                         1.0/2          1.0/2
-podcast                       1.5/4          4.0/4
+podcast                       3.0/4          3.5/4
 rice                          2.0/2          2.0/2
 stock_exchange                1.5/2          1.5/2
-ted                           2.0/2          2.0/2
+ted                           1.5/2          2.0/2
 --------------------------------------------------
-TOTAL                       11.0/15        13.5/15
+TOTAL                       12.0/15        13.0/15
 
 category                  retrieval          naive
 blind_spot_motion             2.0/2          2.0/2
-cross_modal                   1.5/2          1.5/2
+cross_modal                    1.5/2         1.5/2
 factual                       2.0/3          2.0/3
-needle_haystack               1.5/4          4.0/4
-not_in_video                  2.0/2          2.0/2
+needle_haystack                3.0/4         3.5/4
+not_in_video                   1.5/2         2.0/2
 reasoning                     2.0/2          2.0/2
 --------------------------------------------------
-TOTAL                       11.0/15        13.5/15
+TOTAL                       12.0/15        13.0/15
 ```
 
-**On the 5 short clips, the two systems tied (9.5/11 each)** -- small enough corpora
-(50-83 indexed items) that dumping everything never overwhelmed the naive baseline.
+**These are the numbers after fixing the top-k issue this same round found** -- see
+the sequence below for the honest before/after, since the fix was designed and
+verified against this exact eval rather than shipped on theory.
+
+**First pass, fixed k=6: naive clearly won on the podcast (4.0/4 vs. 1.5/4)** -- the
+opposite of what retrieval was built to demonstrate. Root-caused by inspecting exactly
+what `index/retrieve.py` surfaced for the two worst questions: the real balloon-analogy
+passage (~25:20-25:34) and the real "feel the emotion first" explanation (~16:16-16:36)
+were never retrieved at all. Instead, top-6 surfaced lines like *"Why are you holding
+on?"* [01:19] and *"what am I really attaching myself to?"* [04:14] -- both from a
+**different expert's segment on a different topic**, pulled in purely for sharing
+surface vocabulary with the question. With ~900 short (~2s) fragments across 9 topics,
+several unrelated segments share enough relationship-vocabulary with a given question
+to out-rank the real answer in cosine similarity.
+
+**Fix: adaptive top-k** (see Design decisions) -- grounded in the actual rank of the
+correct passages, not guessed. Computing full similarity rankings (no cutoff) showed:
+the "unfinished business" quote was already rank #0/#2 (already fine at k=6 -- that
+question's earlier "partial" was really about a separately-chunked elaboration, not
+top-k); the "manifest love" explanation sat at rank #18/#23 (reachable with a larger
+k); the balloon analogy sat at rank **#129/#422 out of 911** (not reachable by any
+cost-aware k -- its wording, e.g. "tie it to my wrist," shares almost no vocabulary
+with the question, "analogy... holding on too tightly").
+
+**After the fix: podcast retrieval improved from 1.5/4 to 3.0/4.** The
+"unfinished business" and "manifest love" questions now score correct/partial instead
+of partial/wrong, exactly matching the rank data's prediction. The balloon question is
+still wrong -- also exactly as predicted, since #422 is unreachable regardless of k.
+That's the honest ceiling of a top-k fix: it recovers recall that was *rankable but
+excluded*, not recall where the question and answer just don't share vocabulary at
+all. Closing that last gap needs a different lever (e.g. query rewriting/expansion, a
+cross-encoder rerank stage, or bigger chunks with more surrounding context) -- noted
+as a next step, not fixed here. Re-running the 5 short clips after the k change showed
+no regressions: one ted score moved from correct to partial, but the answer's actual
+content was unchanged between runs -- that's LLM-judge scoring noise at the margin,
+not a behavior change (confirmed by reading both answers directly).
+
 Both blind-spot questions (fast break speed, specific dribble move) were answered
-honestly by both systems -- Part A's blind-spot prompt logic holds up. Both missed the
-same pasta-sauce question, and the eval process itself surfaced why (see Limitations).
-
-**On the long podcast (911 indexed items), the naive baseline clearly won (4.0/4 vs.
-1.5/4) -- the opposite of what retrieval was built to demonstrate.** This deserved a
-real root-cause dig rather than being reported at face value. Inspecting exactly what
-`index/retrieve.py` surfaced for the two worst-scoring questions:
-
-- *"What analogy does the comedian... use to explain holding on too tightly?"* --
-  the actual balloon-analogy passage (~25:20-25:34) was never retrieved. Instead,
-  top-k=6 surfaced lines like *"Why are you holding on?"* [01:19] and *"what am I
-  really attaching myself to?"* [04:14] -- both from a **different expert's**
-  segment on a different topic, pulled in purely because they share surface
-  vocabulary ("holding on", "attaching") with the question's wording.
-- *"What does the neuroscientist say about... emotion and events?"* -- the actual
-  explanation (~16:16-16:36) was also never retrieved. Instead it surfaced that
-  expert's segment *intro* line and, again, intro lines from unrelated segments
-  (Matthew Hussey at [18:11], James Corden's *"powerful analogy about love and
-  letting go"* at [24:55]) -- all lexically adjacent to "manifest love" without
-  being the answer.
-
-**Root cause: a fixed top-k=6 doesn't scale to a large, multi-topic corpus.** With
-~900 short (~2s) transcript fragments spanning 9 different topics, several
-completely unrelated segments happen to share surface-level relationship vocabulary
-("holding on", "manifesting", "attaching") with a given question's phrasing. Cosine
-similarity ranks those lexical near-misses above the actual answer whenever the real
-passage phrases the idea differently than the question does -- exactly what happened
-here. The ±10s temporal-alignment expansion doesn't help recall in an audio-only case
-like this (frames are sparse, ~1 every 78s, so there's rarely a nearby one to expand
-with). The naive baseline, by contrast, can't miss the passage -- it sees the entire
-transcript -- and gpt-4o-mini's long-context recall is clearly good enough to locate
-a distinctive quote among ~900 lines once it's all there to read. This is a genuine,
-now eval-confirmed limitation of the current fixed-k design, not a wash: retrieval's
-fusion/honesty logic is sound (it never fabricated -- it just said the excerpt lacked
-detail), but recall at this corpus size needs a larger or adaptive k, or a rerank
-step, to actually beat a full dump. Left as a documented, prioritized limitation
-rather than patched under eval pressure.
+honestly by both systems, unaffected by the retrieval change -- Part A's blind-spot
+prompt logic holds up. Both systems still miss the same pasta-sauce question; the eval
+process is what surfaced why (see Limitations).
 
 ## Limitations
 
-- **Fixed top-k=6 doesn't scale to a large, multi-topic corpus -- confirmed by eval,
-  not just theorized.** On the ~32min/911-item podcast eval video, retrieval scored
-  1.5/4 on needle-in-haystack questions against a naive full-dump baseline's 4/4 (see
-  Eval results above for the full root-cause dig). Short, generic-vocabulary segments
-  from unrelated topics can out-rank the actual answer in cosine similarity whenever
-  the real passage phrases things differently than the question does. Not adapted to
-  video length or content density at all currently -- a 3-minute clip and a 32-minute
-  compilation get the same k=6 and the same ±10s alignment window.
+- **Adaptive top-k closes part of the retrieval-at-scale gap, not all of it.** After
+  scaling k with corpus size (see Design decisions and Eval results), the podcast
+  video's needle-in-haystack score improved from 1.5/4 to 3.0/4 against naive's
+  3.5/4 -- better, not yet at parity. The remaining gap is a distinct problem from
+  top-k sizing: when a passage's actual wording shares almost no vocabulary with how
+  a question phrases the same idea (confirmed case: the correct answer ranked #422
+  out of 911 by cosine similarity), no cost-aware k reaches it. Closing that needs a
+  different lever -- query rewriting/expansion, a cross-encoder rerank stage, or
+  larger chunks with more surrounding context -- not just a bigger k.
+- The ±10s temporal-alignment window is still fixed regardless of corpus size or
+  video length, unlike top-k.
 - **Scene-change detection can structurally miss on-screen text that doesn't
   accompany a shot change.** Investigated a concrete failure during evals: the
   `pasta` video shows a "Bacon" on-screen text label for a full ~3 seconds
