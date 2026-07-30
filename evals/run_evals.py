@@ -55,29 +55,54 @@ JUDGE_MODEL = "gpt-4o-mini"
 SCORE_MAP = {"correct": 1.0, "partial": 0.5, "wrong": 0.0}
 
 JUDGE_SYSTEM_PROMPT = """You are grading a video-QA system's answer against a \
-hand-written expected answer. Grade the ACTUAL answer as one of:
+hand-written expected answer.
 
-- "correct": the actual answer's substance matches the expected answer -- same \
-facts, same conclusion. Minor wording differences or extra detail don't count \
-against it.
-- "partial": the actual answer gets part of it right but is incomplete, hedges \
-when it shouldn't, or includes a real error alongside correct content.
-- "wrong": the actual answer contradicts the expected answer, confidently \
-fabricates information the expected answer says isn't available, or misses the \
-point entirely.
+First identify the CENTRAL FACT of the expected answer -- the one thing the \
+question is actually asking for. Then check whether the actual answer contains \
+that central fact, regardless of wording. A differently-worded answer that \
+states the same central fact is just as correct as one that echoes the \
+expected phrasing.
 
-For questions where the expected answer says something is NOT known/shown/said, \
-an actual answer that reaches that same conclusion in its own words is "correct" \
--- it does not need to match the expected wording, only the conclusion.
+Grade using this rubric exactly:
+
+- "correct": the actual answer contains the central fact of the expected \
+answer, even if it omits secondary details the expected answer mentions, uses \
+different wording, or adds extra (correct) context.
+- "partial": the actual answer touches the right topic or moment but misses or \
+distorts the central fact itself -- e.g. it's vague exactly where the central \
+fact needs to be specific, or it gets a secondary detail right while getting \
+the central fact wrong.
+- "wrong": the actual answer contradicts the central fact, is off-topic, or \
+confidently fabricates information the expected answer says isn't available.
+
+For questions where the expected answer's central fact is that something is \
+NOT known/shown/said, an actual answer that reaches that same conclusion in \
+its own words is "correct" -- it does not need to match the expected wording, \
+only the conclusion.
+
+This "not known" exception applies ONLY when the EXPECTED answer itself \
+asserts that the information is absent/unavailable/not shown. It does NOT \
+apply just because the ACTUAL answer declines to answer or claims not to have \
+the information. If the expected answer states a concrete fact (a name, a \
+number, an ingredient, an analogy, etc.), an actual answer that says "not \
+specified" / "I don't know" / "not provided in this excerpt" is WRONG, full \
+stop -- declining to state a knowable fact is a failure to answer, not \
+honesty, and must never be graded "correct" or "partial" just for admitting \
+uncertainty.
+
+Be consistent: apply the same standard to every answer. This is not about \
+being lenient or strict -- it's about whether the central fact is actually \
+present. State your reasoning (including what you judged the central fact to \
+be) before giving your verdict.
 """
 
 JUDGE_SCHEMA = {
     "type": "object",
     "properties": {
-        "verdict": {"type": "string", "enum": ["correct", "partial", "wrong"]},
         "reasoning": {"type": "string"},
+        "verdict": {"type": "string", "enum": ["correct", "partial", "wrong"]},
     },
-    "required": ["verdict", "reasoning"],
+    "required": ["reasoning", "verdict"],
     "additionalProperties": False,
 }
 

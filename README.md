@@ -337,6 +337,40 @@ was ever traced to missing or wrong retrieved content. Combined with the structu
 proof above, this is accepted as pre-existing LLM/judge and Whisper non-determinism,
 not evidence against the fix.
 
+**Judge calibration.** The balloon question's chronic correct/partial flipping (see
+above) was eventually traced to two separate, fixable weaknesses in the judge
+prompt itself, not the system under test:
+
+1. **The original rubric graded on vague "substance match," and the schema
+   generated `verdict` before `reasoning`** -- meaning the judge picked a grade
+   first and only wrote a justification for it afterward, structurally
+   incapable of letting reasoning inform the verdict. Fixed by rewriting the
+   rubric around an explicit CENTRAL FACT (correct = contains it regardless of
+   wording; partial = touches the topic but misses/distorts it; wrong =
+   contradicts or fabricates) and reordering the structured-output schema so
+   `reasoning` is generated first.
+2. **That fix introduced a new failure mode of its own**, caught before being
+   accepted: the rubric's honesty carve-out ("an answer matching an
+   expected-unknown conclusion is correct") was worded loosely enough that the
+   judge sometimes applied it whenever the *actual* answer declined to
+   answer -- including on the pasta ingredients question, where the *expected*
+   answer states a concrete fact (egg yolks, parmesan, bacon). A flat "not
+   specified" from naive was graded "correct" there, exactly the
+   score-inflating failure this whole effort was trying to avoid. Fixed by
+   restricting the carve-out to fire only when the *expected* answer itself
+   asserts absence -- never just because the actual answer punts.
+3. **Verified with two full-suite runs after the restriction**: the pasta
+   ingredients question graded "wrong" for both systems in both runs (stable,
+   correct). The balloon question no longer swings to "wrong" or produces
+   self-contradictory reasoning -- but it still moves between "correct" and
+   "partial" run to run, and reading the reasoning both times shows the judge
+   weighing one specific narrative detail (whether the "tying the balloon to
+   your wrist" image is present) differently depending on the exact phrasing
+   generated that run. That's accepted as bounded, genuine LLM-judge
+   non-determinism on a subjective edge case, not a bug -- majority-vote judging
+   (already noted under Future work) is the lever to fully close it, deferred
+   for now since tripling judge cost isn't worth it for one edge case.
+
 ## Limitations
 
 - **Three distinct retrieval-at-scale failure modes were found; all three are now
@@ -426,6 +460,11 @@ Not implemented, just noted for later:
   to expand it -- e.g. re-retrieve with a larger k/window scoped to the same
   timestamp range and re-answer with more detail/context, rather than making the
   user rephrase the question to get more.
+- **Majority-vote judging.** Call the judge N times (e.g. 3) per answer and take
+  the majority verdict, to close the residual bounded correct/partial variance on
+  subjective edge cases like the balloon question (see Eval results, "Judge
+  calibration") that a better rubric alone narrows but doesn't fully eliminate.
+  Deferred for now -- tripling judge cost isn't worth it for one edge case.
 
 ## Run locally
 
