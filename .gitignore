@@ -5,3 +5,4 @@ __pycache__/
 .DS_Store
 evals/videos/
 evals/results_fast.json
+evals/.cache/
