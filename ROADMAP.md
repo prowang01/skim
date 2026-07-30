@@ -1,44 +1,41 @@
 # Roadmap
 
-Planning doc only — nothing here is implemented yet. Written at the end of a Palier 5
-session (retrieval + rerank + adjacent-context + relative cap, see README for the
-full story) to organize what's next for a focused 1-2 hour session.
+Planning doc written at the end of a Palier 5 session (retrieval + rerank +
+adjacent-context + relative cap, see README for the full story) to organize what's
+next for a focused 1-2 hour session. Quick wins #1-4 below have since been
+implemented (see README); left in place, marked done, rather than deleted, so the
+original prioritization/reasoning stays visible.
 
 Two buckets: **Quick wins** (minutes each, low risk, do these first) and **Bigger
 work** (real chunks — plan for one of these per session, not several).
 
 ## Quick wins, ranked by effort-to-value ratio
 
-1. **Fast eval subset** (~15-20 min). `evals/run_evals.py` always runs all 6 videos,
+1. **[DONE] Fast eval subset** (~15-20 min). `evals/run_evals.py` always ran all 6 videos,
    including re-transcribing the 32-min podcast every time (~3.5 min of wall time on
    its own). Add a way to filter which videos run — an env var
    (`EVAL_VIDEOS=ted,rice`) or a CLI arg is enough; just filter `dataset["videos"]`
    by `id` before the loop. Ranked #1 because every other item below gets verified
    by re-running evals, and this cuts that loop from ~10 min to ~1 min. Do this
    first tomorrow, before anything else.
-2. **Manual language selector (FR/EN)** (~15-20 min). `ingest/transcribe.py`'s
-   `transcribe()` never passes `language=` to faster-whisper, relying entirely on
+2. **[DONE] Manual language selector (FR/EN)** (~15-20 min). `ingest/transcribe.py`'s
+   `transcribe()` never passed `language=` to faster-whisper, relying entirely on
    auto-detection — which mis-fired on a synthetic TTS test clip earlier this
-   project (detected French for English audio). Add a `language` param
+   project (detected French for English audio). Added a `language` param
    (`None`/`"en"`/`"fr"`) threaded through to `model.transcribe(..., language=...)`,
-   plus a selectbox in `app.py` ("Auto / English / French"). Directly addresses "or
-   let user pick language" from your own framing — the reliable-auto-detection
-   version is the bigger-work variant below.
-3. **Judge rubric tightening** (~10-15 min). The balloon question's chronic
-   correct/partial flipping (documented at length in the README) comes from the
-   judge's own grading looseness, not the system's answers changing. Tighten
-   `JUDGE_SYSTEM_PROMPT` in `evals/run_evals.py` with more explicit criteria (e.g.
-   "partial only if a concrete named detail is missing, not for extra correct
-   context" or "score on covered specific facts, not phrasing/completeness").
-   Reduces noise, doesn't eliminate it — a rubric can't fix an inherently
-   probabilistic judge, but it narrows the range. Verify with the fast-eval-subset
-   tool from #1 by re-running the podcast questions a few times.
-4. **Concise / detailed answer toggle** (~15-20 min). Add a radio/selectbox in
-   `app.py` ("Concise / Detailed") that swaps a line in `qa/answer.py`'s
-   `SYSTEM_PROMPT` (e.g. "answer in 1-2 sentences" vs. "answer thoroughly with
-   supporting detail"). The simplest version of the Future Work item already noted
-   in the README — the "go deeper" follow-up *action* (re-retrieve with a bigger
-   window) is the bigger-work version below.
+   plus a selectbox in `app.py` ("Auto / English / French"). The reliable-
+   auto-detection version is still the bigger-work variant below.
+3. **[DONE] Judge rubric tightening** (~10-15 min). The balloon question's chronic
+   correct/partial flipping (documented at length in the README) came from the
+   judge's own grading looseness, not the system's answers changing. Tightened
+   `JUDGE_SYSTEM_PROMPT` in `evals/run_evals.py` with explicit central-fact
+   criteria. Reduced noise, didn't eliminate it — a rubric can't fix an inherently
+   probabilistic judge, but it narrows the range.
+4. **[DONE] Concise / detailed answer toggle** (~15-20 min). Added a radio in
+   `app.py` ("Concise / Detailed") that swaps the length instruction in
+   `qa/answer.py`'s `SYSTEM_PROMPT`. The simplest version of the Future Work item
+   already noted in the README — the "go deeper" follow-up *action* (re-retrieve
+   with a bigger window) is still the bigger-work version below.
 5. **Whisper low-confidence segment filtering** (~30-45 min). faster-whisper's
    segment objects carry `no_speech_prob` (and `avg_logprob`) that
    `ingest/transcribe.py`'s `transcribe()` currently discards when building

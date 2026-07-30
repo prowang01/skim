@@ -27,6 +27,8 @@ def _probe_duration(video_path: str) -> float:
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe duration probe failed:\n{result.stderr}")
     return float(result.stdout.strip())
 
 

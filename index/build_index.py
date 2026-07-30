@@ -6,6 +6,7 @@ or FAISS would be pure overhead."""
 
 import os
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 from openai import OpenAI
@@ -18,7 +19,7 @@ EMBEDDING_MODEL = "text-embedding-3-small"
 
 @dataclass
 class IndexItem:
-    kind: str  # "audio" or "visual"
+    kind: Literal["audio", "visual"]
     timestamp: float
     text: str
     gap_note: str | None = None  # set by retrieval when no opposite-modality item is nearby

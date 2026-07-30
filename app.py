@@ -16,6 +16,7 @@ from ingest.describe import describe_frames
 from index.build_index import build_index
 from index.retrieve import retrieve
 from qa.answer import answer_question
+from utils import format_timestamp
 
 load_dotenv()
 
@@ -67,41 +68,44 @@ language = LANGUAGE_OPTIONS[language_label]
 if uploaded_file is not None:
     processed_key = (uploaded_file.name, language)
     if st.session_state.get("processed_key") != processed_key:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            video_path = tmp_path / uploaded_file.name
-            audio_path = tmp_path / "audio.wav"
-            frames_dir = tmp_path / "frames"
-            video_path.write_bytes(uploaded_file.getvalue())
+        try:
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_path = Path(tmp_dir)
+                video_path = tmp_path / uploaded_file.name
+                audio_path = tmp_path / "audio.wav"
+                frames_dir = tmp_path / "frames"
+                video_path.write_bytes(uploaded_file.getvalue())
 
-            with st.spinner("Extracting audio with ffmpeg..."):
-                extract_audio(str(video_path), str(audio_path))
+                with st.spinner("Extracting audio with ffmpeg..."):
+                    extract_audio(str(video_path), str(audio_path))
 
-            with st.spinner("Transcribing with faster-whisper (first run downloads the model)..."):
-                segments = transcribe(str(audio_path), language=language)
+                with st.spinner("Transcribing with faster-whisper (first run downloads the model)..."):
+                    segments = transcribe(str(audio_path), language=language)
 
-            with st.spinner("Detecting scene changes and extracting frames..."):
-                frames = extract_frames(str(video_path), str(frames_dir))
+                with st.spinner("Detecting scene changes and extracting frames..."):
+                    frames = extract_frames(str(video_path), str(frames_dir))
 
-            with st.spinner(f"Describing {len(frames)} frame(s) with GPT-4o..."):
-                frame_descriptions = describe_frames(frames, language=language)
+                with st.spinner(f"Describing {len(frames)} frame(s) with GPT-4o..."):
+                    frame_descriptions = describe_frames(frames, language=language)
 
-            with st.spinner("Building the semantic index..."):
-                index = build_index(segments, frame_descriptions)
+                with st.spinner("Building the semantic index..."):
+                    index = build_index(segments, frame_descriptions)
 
-            # Snapshot thumbnails to bytes now -- the tempdir (and the frame
-            # jpegs in it) goes away as soon as this block exits.
-            frame_previews = [
-                (fd.timestamp, Path(f.path).read_bytes(), fd.description)
-                for f, fd in zip(frames, frame_descriptions)
-            ]
-
-        st.session_state["segments"] = segments
-        st.session_state["frame_descriptions"] = frame_descriptions
-        st.session_state["frame_previews"] = frame_previews
-        st.session_state["index"] = index
-        st.session_state["processed_key"] = processed_key
-        st.session_state["chat_history"] = []
+                # Snapshot thumbnails to bytes now -- the tempdir (and the frame
+                # jpegs in it) goes away as soon as this block exits.
+                frame_previews = [
+                    (fd.timestamp, Path(f.path).read_bytes(), fd.description)
+                    for f, fd in zip(frames, frame_descriptions)
+                ]
+        except Exception as e:
+            st.error(f"Couldn't process this video: {e}")
+        else:
+            st.session_state["segments"] = segments
+            st.session_state["frame_descriptions"] = frame_descriptions
+            st.session_state["frame_previews"] = frame_previews
+            st.session_state["index"] = index
+            st.session_state["processed_key"] = processed_key
+            st.session_state["chat_history"] = []
 
 if "segments" in st.session_state:
     segments = st.session_state["segments"]
@@ -110,13 +114,11 @@ if "segments" in st.session_state:
 
     with st.expander(f"Transcript ({len(segments)} segments)"):
         for s in segments:
-            minutes, secs = divmod(int(s.start), 60)
-            st.text(f"[{minutes:02d}:{secs:02d}] {s.text}")
+            st.text(f"[{format_timestamp(s.start)}] {s.text}")
 
     with st.expander(f"Visual frames ({len(frame_previews)} sampled)"):
         for timestamp, image_bytes, description in frame_previews:
-            minutes, secs = divmod(int(timestamp), 60)
-            st.image(image_bytes, caption=f"[{minutes:02d}:{secs:02d}] {description}", width=320)
+            st.image(image_bytes, caption=f"[{format_timestamp(timestamp)}] {description}", width=320)
 
     st.divider()
     st.subheader("Ask about the video")
@@ -147,8 +149,7 @@ if "segments" in st.session_state:
             st.markdown(answer)
             with st.expander(f"Retrieved for this question ({len(retrieved)} items)"):
                 for item in retrieved:
-                    minutes, secs = divmod(int(item.timestamp), 60)
-                    st.text(f"[{minutes:02d}:{secs:02d}] ({item.kind}) {item.text}")
+                    st.text(f"[{format_timestamp(item.timestamp)}] ({item.kind}) {item.text}")
         st.session_state["chat_history"].append({"role": "assistant", "content": answer})
 else:
     st.info("Upload an mp4 to get started.")

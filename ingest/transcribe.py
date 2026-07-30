@@ -32,5 +32,6 @@ def transcribe(
     ISO 639-1 code (e.g. "en", "fr"); None lets Whisper auto-detect, which
     occasionally misfires on short or unusual-sounding audio."""
     model = _get_model(model_size)
+    # beam_size=5 is faster-whisper's own default, not separately tuned here.
     segments, _info = model.transcribe(audio_path, beam_size=5, language=language)
     return [Segment(start=s.start, end=s.end, text=s.text.strip()) for s in segments]

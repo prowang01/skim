@@ -12,7 +12,7 @@ lectures — where the meaning lives mostly in audio plus a few key visuals. Not
 for fast-motion or sports footage (see Limitations and Eval results below for exactly
 how it handles that case when asked anyway).
 
-This is **Palier 5** of a larger plan (see `videolens-spec.md`): closing the
+This is **Palier 5** of a larger plan (see `skim-spec.md`): closing the
 retrieval-at-scale gap Palier 4's evals found. Palier 1 was audio-only; Palier 2 added
 visual descriptions but dumped everything into every question; Palier 3 added
 retrieval + temporal fusion; Palier 4 added blind-spot honesty and an eval harness
@@ -29,7 +29,10 @@ palier is meant to be a complete, working project on its own — this one is it 
 
 1. **ffmpeg** extracts mono 16kHz audio from the uploaded video (`ingest/extract.py`).
 2. **faster-whisper** (local, CPU, `small` model) transcribes it into timestamped
-   segments (`ingest/transcribe.py`).
+   segments (`ingest/transcribe.py`). A language selector in the UI (Auto-detect /
+   English / French) is passed through to this step and to frame description
+   (step 4) below -- auto-detection alone occasionally misfires on short or
+   unusual-sounding audio.
 3. **ffmpeg scene detection** (`select='gt(scene,0.4)'`) captures a frame only when
    the image changes significantly, hard-capped at ~25 frames sampled uniformly
    across all detected changes if there are more. The video's opening frame is
@@ -74,12 +77,17 @@ palier is meant to be a complete, working project on its own — this one is it 
    the answer (`qa/answer.py`).
 8. Streamlit (`app.py`) wires this into an upload → transcript + frames → chat UI,
    with an expander showing exactly what was retrieved for each question.
-9. **Evals** (`evals/`): a hand-built dataset of 6 videos and 15 questions spanning
+9. **Evals** (`evals/`): a hand-built dataset of 7 videos and 19 questions spanning
    factual recall, cross-modal fusion, reasoning, "not in video" honesty, motion
-   blind-spot honesty, and long-video needle-in-haystack recall. `run_evals.py` runs
-   every question through both this system and a naive dump-everything baseline
+   blind-spot honesty, and long-video needle-in-haystack recall (including one
+   French-language video, exercising the language selector above). `run_evals.py`
+   runs every question through both this system and a naive dump-everything baseline
    (`evals/naive_baseline.py` -- the Palier-1/2 approach), grades both with a
-   gpt-4o-mini judge, and prints a side-by-side score broken down by video and category.
+   gpt-4o-mini judge, and prints a side-by-side score broken down by video and
+   category. Ingestion (transcript + frame descriptions) is cached per video by
+   content hash, so iterating on retrieval/judge logic doesn't re-run
+   transcription/vision every time (`--fast` runs a 3-video subset for quick
+   iteration; `--no-cache`/`--clear-cache` bypass or wipe the cache).
 
 ## Design decisions
 
@@ -184,14 +192,16 @@ palier is meant to be a complete, working project on its own — this one is it 
 
 ## Eval results
 
-Ran against 6 real videos: 5 short (~3 min) clips spanning a TED talk, a cross-modal
+Ran against 7 real videos: 5 short (~3 min) clips spanning a TED talk, a cross-modal
 cooking video, a visual-only (near-silent) cooking video, an animated explainer, and
-Olympic basketball highlights (fast-motion, the deliberate blind-spot stress test) --
-plus one ~32 minute multi-topic compilation (9 different named experts, each on a
+Olympic basketball highlights (fast-motion, the deliberate blind-spot stress test);
+one ~32 minute multi-topic compilation (9 different named experts, each on a
 different narrow relationship topic) added specifically to stress-test retrieval at
-scale with needle-in-haystack questions. 15 questions total across factual recall,
-cross-modal fusion, reasoning, not-in-video honesty, motion blind-spot honesty, and
-needle-in-haystack recall. Full detail in `evals/results.json`.
+scale with needle-in-haystack questions; and one short French-language cooking video
+(jelly-making), added to exercise the language selector (see How it works). 19
+questions total across factual recall, cross-modal fusion, reasoning, not-in-video
+honesty, motion blind-spot honesty, and needle-in-haystack recall. Full detail in
+`evals/results.json`.
 
 **This is the default-config table** (`SKIM_ENABLE_RERANK` unset -- adaptive top-k +
 adjacent-context expansion, both on by default):
@@ -199,30 +209,38 @@ adjacent-context expansion, both on by default):
 ```
 video                     retrieval          naive
 basket_france_usa             3.0/3          3.0/3
+gelee_groseille               4.0/4          4.0/4
 pasta                         1.0/2          1.0/2
-podcast                       4.0/4          4.0/4
+podcast                       4.0/4          3.5/4
 rice                          2.0/2          2.0/2
 stock_exchange                1.5/2          1.5/2
 ted                           2.0/2          2.0/2
 --------------------------------------------------
-TOTAL                       13.5/15        13.5/15
+TOTAL                       17.5/19        17.0/19
 
 category                  retrieval          naive
 blind_spot_motion             2.0/2          2.0/2
 cross_modal                   1.5/2          1.5/2
-factual                       2.0/3          2.0/3
-needle_haystack               4.0/4          4.0/4
-not_in_video                  2.0/2          2.0/2
-reasoning                     2.0/2          2.0/2
+factual                       4.0/5          4.0/5
+needle_haystack               4.0/4          3.5/4
+not_in_video                  3.0/3          3.0/3
+reasoning                     3.0/3          3.0/3
 --------------------------------------------------
-TOTAL                       13.5/15        13.5/15
+TOTAL                       17.5/19        17.0/19
 ```
 
-Retrieval matches naive exactly, at parity rather than trailing -- and gets there
-with a bounded, targeted context instead of a full dump. This is the end of a
-four-stage journey on the podcast's needle-in-haystack score (same 15 questions
-throughout the whole eval set; only the podcast score changed across retrieval
-changes -- and only after each stage was actually measured, not assumed):
+Retrieval essentially matches naive, with a slight edge (17.5 vs. 17.0) -- and gets
+there with a bounded, targeted context instead of a full dump. That whole 0.5-point
+gap traces to a single cell: the podcast's needle-in-haystack score (4.0/4 vs.
+3.5/4). Every other video scores identically between the two systems. Read that as
+"no meaningful difference on short videos, a small edge on the one long,
+multi-topic video" -- not as retrieval broadly outperforming naive, which one
+half-question on one video doesn't support.
+
+That podcast score is the end of a four-stage journey (same 15 questions -- the
+eval set before `gelee_groseille`/French support was added; only the podcast score
+changed across retrieval changes within that set, and only after each stage was
+actually measured, not assumed):
 
 ```
 fixed k=6 (Palier 4):                1.5/4
@@ -437,7 +455,7 @@ prompt itself, not the system under test:
   recognizing repeated/nonsensical transcript lines as unreliable.
 - Frame descriptions are only as good as GPT-4o's read of the image — small or
   low-contrast on-screen text may still be misread.
-- The eval set is still small (6 videos, 15 questions). It's now large enough to have
+- The eval set is still small (7 videos, 19 questions). It's now large enough to have
   surfaced a real retrieval-at-scale gap (see above), but one long video is one data
   point, not a robust curve of "how does k need to scale with corpus size" -- more
   long/multi-topic videos would sharpen that picture.
@@ -451,11 +469,6 @@ Not implemented, just noted for later:
   a longer, denser video might want a different value than a short clip, but there's
   no rank-data-grounded evidence yet for what that curve should look like (one long
   video is one data point, not a curve -- see Limitations).
-- **Adjustable answer depth.** Right now every answer is whatever length the LLM
-  defaults to. Letting the user pick concise vs. detailed (e.g. a toggle or a
-  system-prompt parameter) would help match the answer to the question -- a quick
-  factual lookup and "walk me through the whole segment" shouldn't get the same
-  amount of prose.
 - **A "go deeper" follow-up action.** After a concise answer, offer a one-click way
   to expand it -- e.g. re-retrieve with a larger k/window scoped to the same
   timestamp range and re-answer with more detail/context, rather than making the
@@ -491,5 +504,10 @@ To run the eval suite (needs your own video files under `evals/videos/` matching
 `evals/dataset.json`; videos are gitignored and not included in this repo):
 
 ```bash
-python -m evals.run_evals
+python -m evals.run_evals          # full suite -- run this before committing retrieval/judge changes
+python -m evals.run_evals --fast   # 3-video subset, for quick iteration
 ```
+
+Ingestion is cached by video content hash, so re-running either command only
+re-transcribes/re-describes videos that changed. Add `--no-cache` to force fresh
+ingestion, or `--clear-cache` to wipe the cache and exit.

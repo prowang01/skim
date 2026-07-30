@@ -34,7 +34,14 @@ CANDIDATE_SQRT_FACTOR = 6.0
 # means we no longer need to over-fetch to compensate for cosine similarity.
 FINAL_RERANK_K = 8
 
+# Cross-modal pairing window: how close in time an (audio) and (visual) item
+# need to be to count as describing the same moment (used by both expansion
+# and gap-flagging below). Applies on both the default and rerank paths.
 TIME_WINDOW_SECONDS = 10.0
+
+# Beyond this distance from the nearest opposite-modality item, a retrieved
+# item is flagged in the prompt as an isolated/blind-spot moment (see
+# _annotate_gaps) instead of silently treated as having no nearby context.
 GAP_FLAG_THRESHOLD_SECONDS = 20.0
 
 # Same-modality neighbors to pull in around each selected item (a position
@@ -197,9 +204,12 @@ def retrieve(
     its same-modality neighbors and same-moment context from the other
     modality, and flag any that remain isolated as possible blind spots.
 
-    Default: single-stage adaptive top-k. If SKIM_ENABLE_RERANK is set, uses
-    two-stage retrieval instead -- a wide bi-encoder candidate pool narrowed
-    by a local cross-encoder (see README for why this isn't on by default)."""
+    Default: single-stage adaptive top-k (candidate_k and final_k are
+    ignored on this path -- k is computed internally). If SKIM_ENABLE_RERANK
+    is set, uses two-stage retrieval instead -- a wide bi-encoder candidate
+    pool (candidate_k, adaptive if left None) narrowed by a local
+    cross-encoder to final_k results (see README for why this isn't on by
+    default)."""
     if not index.items:
         return []
 

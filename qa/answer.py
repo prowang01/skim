@@ -8,6 +8,7 @@ import os
 from openai import OpenAI
 
 from index.build_index import IndexItem
+from utils import format_timestamp
 
 CHAT_MODEL = "gpt-4o-mini"
 
@@ -59,11 +60,6 @@ DETAILED_INSTRUCTION = (
 DEPTH_INSTRUCTIONS = {"concise": CONCISE_INSTRUCTION, "detailed": DETAILED_INSTRUCTION}
 
 
-def _format_timestamp(seconds: float) -> str:
-    minutes, secs = divmod(int(seconds), 60)
-    return f"{minutes:02d}:{secs:02d}"
-
-
 def format_context(items: list[IndexItem]) -> str:
     """Render retrieved items as timestamped, source-tagged lines for the prompt."""
     if not items:
@@ -72,7 +68,7 @@ def format_context(items: list[IndexItem]) -> str:
     lines = []
     for item in items:
         tag = f"{item.kind}, {item.gap_note}" if item.gap_note else item.kind
-        lines.append(f"[{_format_timestamp(item.timestamp)}] ({tag}) {item.text}")
+        lines.append(f"[{format_timestamp(item.timestamp)}] ({tag}) {item.text}")
     return "\n".join(lines)
 
 
