@@ -2,6 +2,7 @@
 key visual frames, index everything, and chat with retrieval-driven
 answers."""
 
+import logging
 import tempfile
 from pathlib import Path
 
@@ -17,6 +18,37 @@ from index.retrieve import retrieve
 from qa.answer import answer_question
 
 load_dotenv()
+
+# Silencing a known, proven-false-positive Streamlit warning. Do not remove
+# this without reading the whole comment -- it is intentional, not an
+# oversight.
+#
+# WHAT: on every script run, Streamlit's file watcher calls
+# hasattr(module, "__path__") on every module in sys.modules to decide what
+# to watch for hot-reload. transformers (pulled in transitively by
+# faster-whisper -- we never import it ourselves) lazily loads its
+# submodules via a custom __getattr__, so that innocuous hasattr() call
+# triggers a REAL import attempt of transformers' vision submodules
+# (zoedepth, yolos, ...). Those need torchvision, which raises
+# ModuleNotFoundError, and Streamlit logs the full traceback -- once per
+# submodule, on every script run.
+#
+# WHY IT'S SAFE TO SILENCE: this is a proven false positive, not a real bug.
+# We never call transformers' vision model classes -- index/rerank.py's
+# cross-encoder is text-only -- and torchvision is deliberately not
+# installed (a large, unused dependency; see README). Verified by
+# reproducing this exact traceback directly against Streamlit's own
+# get_module_paths() against this app's real imports, and confirming it's
+# gone once this logger is raised to ERROR.
+#
+# SCOPE: only this one named logger is raised to ERROR. The watcher's actual
+# behavior (file registration, hot-reload) is untouched, and a genuine
+# ERROR-level problem from this same logger would still print.
+#
+# ORDERING: must run after `import streamlit as st` above, which is what
+# creates this logger in the first place -- setting the level any earlier
+# gets silently overwritten once Streamlit's own setup runs.
+logging.getLogger("streamlit.watcher.local_sources_watcher").setLevel(logging.ERROR)
 
 st.set_page_config(page_title="Skim — chat with a video's speech and visuals")
 st.title("Skim")
