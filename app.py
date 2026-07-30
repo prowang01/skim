@@ -121,6 +121,9 @@ if "segments" in st.session_state:
     st.divider()
     st.subheader("Ask about the video")
 
+    answer_style = st.radio("Answer style", ["Concise", "Detailed"], horizontal=True)
+    depth = "concise" if answer_style == "Concise" else "detailed"
+
     for turn in st.session_state["chat_history"]:
         with st.chat_message(turn["role"]):
             st.markdown(turn["content"])
@@ -139,6 +142,7 @@ if "segments" in st.session_state:
                     retrieved,
                     question,
                     history=st.session_state["chat_history"][:-1],
+                    depth=depth,
                 )
             st.markdown(answer)
             with st.expander(f"Retrieved for this question ({len(retrieved)} items)"):

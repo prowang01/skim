@@ -38,10 +38,25 @@ Other rules:
 as describing the same moment: reason about what the person is DOING by combining \
 what was said with what's shown -- don't just describe the frame in isolation.
 - Cite timestamps in [mm:ss] format when your answer relies on a specific moment.
+- {length_instruction}
 
 Retrieved context:
 {context}
 """
+
+CONCISE_INSTRUCTION = (
+    "Answer concisely: 1-2 sentences giving the key fact and its [mm:ss] "
+    "citation, no extra elaboration. The honesty/blind-spot rules above still "
+    "come first -- if the excerpt doesn't have the answer, say so plainly and "
+    "briefly rather than guessing just to sound complete."
+)
+DETAILED_INSTRUCTION = (
+    "Answer thoroughly: give the key fact and its [mm:ss] citation, plus "
+    "surrounding context and a brief explanation of how you got there. The "
+    "honesty/blind-spot rules above still apply -- more detail doesn't mean "
+    "filling in what the excerpt doesn't actually say."
+)
+DEPTH_INSTRUCTIONS = {"concise": CONCISE_INSTRUCTION, "detailed": DETAILED_INSTRUCTION}
 
 
 def _format_timestamp(seconds: float) -> str:
@@ -65,13 +80,17 @@ def answer_question(
     items: list[IndexItem],
     question: str,
     history: list[dict] | None = None,
+    depth: str = "concise",
 ) -> str:
     """Answer a question given the already-retrieved, temporally-aligned
-    context items (see index/retrieve.py)."""
+    context items (see index/retrieve.py). depth is "concise" or "detailed"
+    -- it only changes the answer's length/elaboration, never retrieval."""
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     context = format_context(items)
-    messages = [{"role": "system", "content": SYSTEM_PROMPT.format(context=context)}]
+    length_instruction = DEPTH_INSTRUCTIONS.get(depth, CONCISE_INSTRUCTION)
+    system_prompt = SYSTEM_PROMPT.format(context=context, length_instruction=length_instruction)
+    messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history or [])
     messages.append({"role": "user", "content": question})
 
