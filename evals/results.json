@@ -5,9 +5,9 @@
     "expected": "1,667 words a day.",
     "category": "factual",
     "system": "retrieval",
-    "answer": "The speaker needed to write 1,667 words per day to finish a 50,000-word novel in 30 days [01:51].",
+    "answer": "The speaker needed to write 1,667 words a day to finish a 50,000-word novel in 30 days [01:51].",
     "verdict": "correct",
-    "reasoning": "The actual answer matches the expected answer in substance, stating the same fact that 1,667 words per day is required to complete the 50,000-word novel in 30 days."
+    "reasoning": "The actual answer correctly states that the speaker needed to write 1,667 words a day, which matches the expected answer exactly in substance."
   },
   {
     "video": "ted",
@@ -15,9 +15,9 @@
     "expected": "1,667 words a day.",
     "category": "factual",
     "system": "naive",
-    "answer": "The speaker needed to write 1,667 words per day to finish a 50,000-word novel in 30 days, as stated at [01:51].",
+    "answer": "The speaker needed to write 1,667 words a day to finish a 50,000-word novel in 30 days [01:51].",
     "verdict": "correct",
-    "reasoning": "The actual answer matches the expected answer in substance, providing the same conclusion that the speaker needed to write 1,667 words per day. The reference to the timestamp does not detract from the correctness."
+    "reasoning": "The actual answer matches the expected answer in substance, stating that the speaker needed to write 1,667 words a day. The additional notation [01:51] does not affect the correctness."
   },
   {
     "video": "ted",
@@ -25,9 +25,9 @@
     "expected": "Nothing -- the stock market is not mentioned anywhere in this video. The talk is about 30-day personal challenges (novel writing, photography, biking, climbing Kilimanjaro), not finance.",
     "category": "not_in_video",
     "system": "retrieval",
-    "answer": "The retrieved excerpt does not contain any information regarding the stock market. It is possible that this content exists elsewhere in the video that wasn't captured in the provided context.",
+    "answer": "The retrieved excerpt does not contain any information about the stock market. The speaker discusses personal challenges and habits over a 30-day period, but there is no mention of the stock market in the provided context. This topic may exist elsewhere in the video, but it is not covered in the current excerpt.",
     "verdict": "correct",
-    "reasoning": "The actual answer correctly concludes that the stock market is not mentioned in the video, aligning with the expected answer that states the same. It also acknowledges the possibility of relevant content existing outside the excerpt, which doesn't contradict the expected answer."
+    "reasoning": "The actual answer accurately conveys that the stock market is not mentioned in the video and aligns with the expected answer's conclusion."
   },
   {
     "video": "ted",
@@ -35,9 +35,9 @@
     "expected": "Nothing -- the stock market is not mentioned anywhere in this video. The talk is about 30-day personal challenges (novel writing, photography, biking, climbing Kilimanjaro), not finance.",
     "category": "not_in_video",
     "system": "naive",
-    "answer": "The content does not contain any information about the stock market.",
+    "answer": "The content provided does not mention the stock market at all.",
     "verdict": "correct",
-    "reasoning": "The actual answer accurately reflects the essence of the expected answer by stating that the content does not contain any information about the stock market, which aligns with the conclusion that the stock market is not mentioned in the video."
+    "reasoning": "The actual answer correctly concludes that the stock market is not mentioned in the video, which aligns with the expected answer."
   },
   {
     "video": "rice",
@@ -45,9 +45,9 @@
     "expected": "2 cups of cold jasmine rice and 4 eggs (2 eggs per cup of rice). Stated in speech and shown on screen.",
     "category": "cross_modal",
     "system": "retrieval",
-    "answer": "She uses two cups of cold jasmine rice and cracks four eggs into the rice [00:20], [01:01].",
+    "answer": "She uses two cups of cold jasmine rice and cracks four eggs into it. This is stated when she mentions, \"So since it's two cups of rice, I'm gonna crack four eggs\" [01:01].",
     "verdict": "correct",
-    "reasoning": "The actual answer matches the expected answer in substance, stating the same quantity of rice (2 cups) and eggs (4 eggs), with no discrepancies in the details provided."
+    "reasoning": "The actual answer matches the expected answer in substance, stating the same quantities of rice and eggs. It also accurately reflects the information provided in the speech and confirms the source of that information."
   },
   {
     "video": "rice",
@@ -55,9 +55,9 @@
     "expected": "2 cups of cold jasmine rice and 4 eggs (2 eggs per cup of rice). Stated in speech and shown on screen.",
     "category": "cross_modal",
     "system": "naive",
-    "answer": "She uses two cups of cold jasmine rice and four eggs [00:20], [01:01].",
+    "answer": "She uses two cups of cold jasmine rice and four eggs, as stated at [00:20] and [01:01].",
     "verdict": "correct",
-    "reasoning": "The actual answer matches the expected answer in substance by stating the same amounts: 2 cups of cold jasmine rice and 4 eggs. It also confirms the information was provided in the speech and shown on screen, aligning fully with the expected content."
+    "reasoning": "The actual answer matches the expected answer in substance, stating 2 cups of cold jasmine rice and 4 eggs, which aligns with the details provided in the expected answer."
   },
   {
     "video": "rice",
@@ -65,9 +65,9 @@
     "expected": "No. She explicitly says she doesn't have MSG in this kitchen and doesn't use it, even though the on-screen seasoning graphic lists MSG as an optional ingredient. The spoken statement is what she actually did; the on-screen text is a general recipe option, not a report of what happened.",
     "category": "reasoning",
     "system": "retrieval",
-    "answer": "No, she does not use MSG in her seasoning. She mentions, \"if I had MSG, I probably would have added it already, but I do not have MSG in this Airbnb kitchen\" [01:14].",
+    "answer": "No, she mentions that she does not have MSG in the Airbnb kitchen: \"if I had MSG, I probably would have added it already, but I do not have MSG in this Airbnb kitchen\" [01:14].",
     "verdict": "correct",
-    "reasoning": "The actual answer accurately reflects the substance and conclusion of the expected answer. It confirms that she does not use MSG, cites her spoken statement that she does not have MSG, and clarifies the context of her kitchen situation, which aligns with the expected answer."
+    "reasoning": "The actual answer accurately reflects the expected answer's content by stating that she does not use MSG in the kitchen and includes her explicit statement as evidence. It correctly identifies her spoken words as the basis for her assertion, matching the conclusion without discrepancies."
   },
   {
     "video": "rice",
@@ -75,9 +75,9 @@
     "expected": "No. She explicitly says she doesn't have MSG in this kitchen and doesn't use it, even though the on-screen seasoning graphic lists MSG as an optional ingredient. The spoken statement is what she actually did; the on-screen text is a general recipe option, not a report of what happened.",
     "category": "reasoning",
     "system": "naive",
-    "answer": "No, she mentions that she does not have MSG available in the Airbnb kitchen, so she does not use it in her seasoning [01:14].",
+    "answer": "No, she mentions that she does not have MSG available in the Airbnb kitchen and therefore does not use it in her seasoning [01:14].",
     "verdict": "correct",
-    "reasoning": "The actual answer correctly states that she does not have MSG in the Airbnb kitchen and does not use it in her seasoning, which aligns with the expected answer. It also accurately reflects the spoken statement rather than the on-screen graphic."
+    "reasoning": "The actual answer accurately conveys that she does not use MSG in her seasoning, which aligns with the expected answer. It correctly references her statement about the lack of MSG in the kitchen and emphasizes that this is her practice, in line with the expected conclusion."
   },
   {
     "video": "pasta",
@@ -85,9 +85,9 @@
     "expected": "A carbonara-style sauce made from egg yolks and grated parmesan cheese, combined with cooked bacon (not minced meat).",
     "category": "factual",
     "system": "retrieval",
-    "answer": "The retrieved excerpt does not contain any information regarding the ingredients used in the pasta sauce. It primarily focuses on the cooking process involving ground meat, pasta, and cheese. Details about the sauce itself might exist elsewhere in the video that wasn't included in this excerpt.",
+    "answer": "The retrieved excerpt does not provide any specific information about the ingredients used in the pasta sauce. It primarily describes the cooking of minced meat, boiling pasta, and the addition of grated cheese. The details about the sauce ingredients may exist in other parts of the video that weren't included in this excerpt.",
     "verdict": "wrong",
-    "reasoning": "The actual answer states that the information about the pasta sauce's ingredients is not contained in the excerpt and implies that ground meat is involved, which contradicts the expected answer that specifies egg yolks and grated parmesan cheese with cooked bacon. Therefore, it fails to align with the expected answer's key details."
+    "reasoning": "The actual answer incorrectly states that the expected answer is not provided. The expected answer clearly identifies the ingredients of the carbonara-style sauce, which are egg yolks, grated parmesan cheese, and cooked bacon, explicitly stating that it does not include minced meat. Therefore, the actual answer fundamentally misrepresents the information in the expected answer."
   },
   {
     "video": "pasta",
@@ -95,9 +95,9 @@
     "expected": "A carbonara-style sauce made from egg yolks and grated parmesan cheese, combined with cooked bacon (not minced meat).",
     "category": "factual",
     "system": "naive",
-    "answer": "The content does not provide specific information about the ingredients that make up the pasta sauce.",
+    "answer": "The content provided does not specify the ingredients that make up the pasta sauce. It primarily depicts the cooking process without detailing ingredients.",
     "verdict": "wrong",
-    "reasoning": "The actual answer states that specific information about the ingredients is not provided, which contradicts the expected answer that clearly lists the ingredients used in the pasta sauce."
+    "reasoning": "The actual answer incorrectly asserts that the ingredients are not specified, when in fact the expected answer does clearly outline the ingredients of the pasta sauce."
   },
   {
     "video": "pasta",
@@ -105,9 +105,9 @@
     "expected": "Nothing meaningful -- there is no real spoken narration, only background music. Any transcribed 'speech' (e.g. repeated single-word sounds) is a transcription artifact from the music, not actual dialogue, and shouldn't be repeated as if it were something the cook said.",
     "category": "reasoning",
     "system": "retrieval",
-    "answer": "The retrieved context does not include any specific dialogue from the cook while preparing the dish. Therefore, I cannot provide details about what was said during the cooking process. It's possible that the speech exists elsewhere in the video, but it is not captured in the excerpts provided.",
+    "answer": "The retrieved excerpt does not provide specific dialogue from the cook during the preparation of the dish, as most of the audio lines are fragmented and lack context. Therefore, I cannot provide the exact words or phrases that the cook says while preparing the dish. If you would like to know more about the dish being prepared, let me know!",
     "verdict": "correct",
-    "reasoning": "The actual answer correctly concludes that there is no meaningful spoken narration from the cook, aligning with the expected answer's claim that any perceived speech is a transcription artifact, not actual dialogue."
+    "reasoning": "The actual answer correctly concludes that there is no meaningful spoken narration from the cook and acknowledges the lack of specific dialogue. It aligns with the expected answer's emphasis on the absence of real dialogue, thus matching the conclusion."
   },
   {
     "video": "pasta",
@@ -115,9 +115,9 @@
     "expected": "Nothing meaningful -- there is no real spoken narration, only background music. Any transcribed 'speech' (e.g. repeated single-word sounds) is a transcription artifact from the music, not actual dialogue, and shouldn't be repeated as if it were something the cook said.",
     "category": "reasoning",
     "system": "naive",
-    "answer": "The content provided does not contain any dialogue or specific statements from the cook while preparing the dish.",
+    "answer": "The content does not include any spoken words or commentary from the cook while preparing the dish. It only contains music and the transcriptions of repetitive phrases.",
     "verdict": "correct",
-    "reasoning": "The actual answer correctly concludes that there is no meaningful dialogue from the cook, consistent with the expected answer's assertion that there is no real spoken narration."
+    "reasoning": "The actual answer accurately reflects the expected answer by stating that there are no meaningful spoken words or commentary from the cook, aligning with the conclusion that the only sounds present are music and non-meaningful transcriptions."
   },
   {
     "video": "stock_exchange",
@@ -125,9 +125,9 @@
     "expected": "The DAX tracks the combined value of Germany's 30 biggest companies. The video's DAX board visual shows example company names including RWE, ALLIANZ, and BMW.",
     "category": "cross_modal",
     "system": "retrieval",
-    "answer": "The DAX index tracks the value of Germany's biggest 30 companies. In the retrieved segments, specific company names are not mentioned; instead, the visual shows multiple company names against a blue background with a DAX logo, indicating stock market participants, but the particular companies are not detailed in the provided content [02:52]. The information about which companies are included in the DAX index may exist elsewhere in the video that wasn't retrieved for this question.",
+    "answer": "The DAX index tracks the value of Germany's biggest 30 companies, summarizing how well or poorly these major companies are performing. Examples of companies shown in the video include 'ADIDAS' and 'BMW' [02:53]. Additionally, other companies such as RWE and ALLIANZ are indicated in the graphs associated with the DAX display [03:02].",
     "verdict": "partial",
-    "reasoning": "The actual answer correctly identifies that the DAX tracks the value of Germany's biggest 30 companies, which aligns with the expected answer. However, it fails to provide the examples of specific companies like RWE, ALLIANZ, and BMW, stating that the video does not name them. This incompleteness means the actual answer is only partially correct."
+    "reasoning": "The actual answer correctly states that the DAX tracks the value of Germany's biggest 30 companies and claims to show examples including 'BMW', which is correct. However, it incorrectly lists 'ADIDAS' as one of the examples given in the video without confirmation that it was indeed shown. Its mention of RWE and ALLIANZ is accurate but does not match the expected answer's emphasis on them being examples directly shown in the visual. Therefore, while it gets part of it right, it contains errors and is incomplete."
   },
   {
     "video": "stock_exchange",
@@ -135,9 +135,9 @@
     "expected": "The DAX tracks the combined value of Germany's 30 biggest companies. The video's DAX board visual shows example company names including RWE, ALLIANZ, and BMW.",
     "category": "cross_modal",
     "system": "naive",
-    "answer": "The DAX index tracks the value of Germany's biggest 30 companies and shows how well or poorly these major companies and the economy as a whole are performing at the present time [02:52-03:03]. However, the video does not specify the names of the companies included in the DAX index as examples.",
+    "answer": "The DAX index tracks the value of Germany's biggest 30 companies and indicates how well or poorly these major companies\u2014and thereby the economy as a whole\u2014are performing at a given time [02:52-03:03]. In the video, examples of companies shown in relation to the DAX index include RWE and ALLIANZ [03:02].",
     "verdict": "partial",
-    "reasoning": "The actual answer correctly states what the DAX index tracks but inaccurately claims that the video does not specify the names of the companies included in the DAX. The expected answer provides examples of companies (RWE, ALLIANZ, and BMW), which the actual answer fails to acknowledge."
+    "reasoning": "The actual answer is mostly correct, as it identifies the DAX index as tracking the value of Germany's biggest 30 companies. However, it omits one specific example mentioned in the expected answer, which is BMW, and does not explicitly say that the DAX reflects the combined value, which is a key detail of the expected answer."
   },
   {
     "video": "stock_exchange",
@@ -145,9 +145,9 @@
     "expected": "Not stated -- the video never mentions Apple's real share price. It only uses illustrative, made-up example figures (like a fictional 'Taco Inc.' stock or a generic company-value example) to explain concepts, not real current market data for any specific real company.",
     "category": "not_in_video",
     "system": "retrieval",
-    "answer": "The retrieved excerpt does not provide information on Apple's exact real-world share price. Therefore, I cannot answer that question based on the available content. It might be mentioned elsewhere in the video that wasn't retrieved for this question.",
+    "answer": "The retrieved excerpt does not provide Apple's exact real-world share price. It discusses the concept of share prices and their fluctuations but does not specify any actual figures for Apple. This information might exist elsewhere in the video that wasn't retrieved for this question.",
     "verdict": "correct",
-    "reasoning": "The actual answer correctly concludes that Apple's exact real-world share price is not stated in the video and reflects that the video uses illustrative examples instead. It aligns with the expected answer's conclusion and does not contradict it."
+    "reasoning": "The actual answer correctly concludes that the video does not provide Apple's exact real-world share price and explains that it only discusses share prices in a general context, aligning with the expected answer."
   },
   {
     "video": "stock_exchange",
@@ -155,9 +155,9 @@
     "expected": "Not stated -- the video never mentions Apple's real share price. It only uses illustrative, made-up example figures (like a fictional 'Taco Inc.' stock or a generic company-value example) to explain concepts, not real current market data for any specific real company.",
     "category": "not_in_video",
     "system": "naive",
-    "answer": "The content provided does not mention Apple's exact real-world share price.",
+    "answer": "The content does not provide the exact real-world share price for Apple.",
     "verdict": "correct",
-    "reasoning": "The actual answer accurately reflects the expected answer by stating that the content does not mention Apple's exact real-world share price, aligning with the conclusion that such a price is not stated in the video."
+    "reasoning": "The actual answer correctly concludes that the video does not provide Apple's exact real-world share price, aligning with the expected answer that it is not stated in the video."
   },
   {
     "video": "basket_france_usa",
@@ -165,9 +165,9 @@
     "expected": "Cannot be determined. The system only has sampled still frames and an audio commentary track, not continuous video, so it cannot measure how long a fast break takes -- it should say so rather than guess a number.",
     "category": "blind_spot_motion",
     "system": "retrieval",
-    "answer": "I cannot judge the speed of the fast break since my excerpt contains only transcribed speech and still frames, without any continuous video to assess motion or speed.",
+    "answer": "I'm unable to assess the speed or duration of any fast break shown in this clip, as I do not have continuous video or motion context \u2013 just still frames and transcribed audio. Therefore, I cannot provide an answer regarding how fast it was in seconds.",
     "verdict": "correct",
-    "reasoning": "The actual answer accurately conveys that the system cannot determine the speed of the fast break due to the limitations of the available materials, matching the conclusion of the expected answer."
+    "reasoning": "The actual answer accurately reflects the conclusion of the expected answer that the speed or duration cannot be determined due to the lack of continuous video, matching the reasoning and content provided."
   },
   {
     "video": "basket_france_usa",
@@ -175,9 +175,9 @@
     "expected": "Cannot be determined. The system only has sampled still frames and an audio commentary track, not continuous video, so it cannot measure how long a fast break takes -- it should say so rather than guess a number.",
     "category": "blind_spot_motion",
     "system": "naive",
-    "answer": "The content provided does not include specific details about the speed or timing of a fast break, nor does it provide continuous motion that can be assessed for speed. Therefore, I cannot provide an answer regarding the speed of the fast break shown in the clip.",
+    "answer": "The content provided does not specify the speed or timing of any fast break sequences, nor does it include continuous motion details that would allow me to assess the speed of a play accurately. Therefore, I cannot provide an answer to how fast the fast break is in seconds.",
     "verdict": "correct",
-    "reasoning": "The actual answer correctly concludes that the speed of the fast break cannot be determined due to the limitations of the content provided, matching the expected answer's conclusion."
+    "reasoning": "The actual answer correctly concludes that the speed of the fast break cannot be determined due to the lack of continuous video, which aligns with the expected answer."
   },
   {
     "video": "basket_france_usa",
@@ -185,9 +185,9 @@
     "expected": "Cannot be reliably determined. The commentary only says things like 'lovely dribble' without naming a specific move, and still frames can't capture continuous dribbling motion -- the system should admit it can't identify the exact move rather than inventing one.",
     "category": "blind_spot_motion",
     "system": "retrieval",
-    "answer": "The retrieved context does not provide specific details about the dribble move or footwork used by the player right before scoring. Although there is mention of \"lovely dribble\" before a shot is taken at [02:05], the exact nature of the dribble or footwork is not described. Therefore, I cannot provide that information as it is not available within the retrieved excerpt.",
+    "answer": "The retrieved context does not specify the exact dribble move or footwork used by the player before scoring. The closest reference is where it's mentioned, \"Lovely dribble, puts it up,\" [02:05], but it does not provide detailed information about the specific technique or footwork. Therefore, I cannot confidently answer your question as this detail may exist elsewhere in the video that wasn't retrieved.",
     "verdict": "correct",
-    "reasoning": "The actual answer acknowledges that the details about the specific dribble move or footwork are not present in the commentary, which aligns with the expected answer's conclusion that it 'cannot be reliably determined.' It correctly notes the lack of specificity and does not attempt to invent information."
+    "reasoning": "The actual answer correctly concludes that the specific dribble move or footwork cannot be reliably determined, mirroring the expected answer's conclusion. It acknowledges the lack of detail in the commentary and frames the uncertainty appropriately."
   },
   {
     "video": "basket_france_usa",
@@ -195,9 +195,9 @@
     "expected": "Cannot be reliably determined. The commentary only says things like 'lovely dribble' without naming a specific move, and still frames can't capture continuous dribbling motion -- the system should admit it can't identify the exact move rather than inventing one.",
     "category": "blind_spot_motion",
     "system": "naive",
-    "answer": "The content does not specify the exact dribble move or footwork used by the player before scoring. It mentions \"lovely dribble\" in the context of Anthony Edwards, but does not describe the particular technique he employed [01:31].",
+    "answer": "The content does not specify a particular dribble move or footwork used by the player right before scoring. It mentions that \"Edwards, lovely dribble\" and that he scored a three-pointer, but there are no detailed descriptions of the exact move [00:31][00:37].",
     "verdict": "correct",
-    "reasoning": "The actual answer accurately states that it does not specify the exact dribble move or footwork and acknowledges the commentary's vague description of 'lovely dribble.' It appropriately concludes that the specific technique used by the player cannot be reliably determined, matching the expected answer's conclusion."
+    "reasoning": "The actual answer accurately reflects the expected answer's conclusion that a specific dribble move or footwork cannot be determined from the commentary, and it correctly notes the lack of specific descriptions. It aligns well with the expected response."
   },
   {
     "video": "basket_france_usa",
@@ -205,9 +205,9 @@
     "expected": "The United States won gold, beating France 98-87.",
     "category": "factual",
     "system": "retrieval",
-    "answer": "The final score was France 87, United States of America 98. The United States won the gold medal at Paris 2024 [02:20].",
+    "answer": "The final score was France 87, USA 98, and the United States won the gold medal at Paris 2024 [02:20].",
     "verdict": "correct",
-    "reasoning": "The actual answer correctly states the final score of 98-87 in favor of the United States and confirms that the United States won the gold medal, matching the expected answer's facts and conclusions."
+    "reasoning": "The actual answer matches the expected answer in both facts and conclusion. It correctly states the final score and identifies the United States as the gold medal winner."
   },
   {
     "video": "basket_france_usa",
@@ -215,9 +215,9 @@
     "expected": "The United States won gold, beating France 98-87.",
     "category": "factual",
     "system": "naive",
-    "answer": "The final score was France 87 - 98 United States of America, and the United States won the gold medal at the Men's Basketball at Paris 2024 [02:20].",
+    "answer": "The final score was France 87, USA 98, and the USA won the gold medal at the Men's Basketball at Paris 2024 [02:20].",
     "verdict": "correct",
-    "reasoning": "The actual answer accurately includes the final score of 98-87, states that the United States won the gold medal, and conveys the same facts as the expected answer."
+    "reasoning": "The actual answer provides the same information as the expected answer, correctly stating that the United States won gold and that the final score was 98-87, just presented in a slightly different order."
   },
   {
     "video": "podcast",
@@ -225,9 +225,9 @@
     "expected": "Lori Gottlieb explains that just as we bury unfinished emotional business from our past, we also unconsciously date that unfinished business -- e.g. if you grew up around someone neglectful, you may find yourself drawn to partners who repeat that same pattern.",
     "category": "needle_haystack",
     "system": "retrieval",
-    "answer": "The psychotherapist refers to the concept of 'dating our unfinished business' as the tendency to carry unresolved issues from past relationships into new ones. She explains that if someone has had experiences where they were around unreliable or dishonest individuals, they might unconsciously seek the opposite in their adult relationships, believing that they want someone who is trustworthy and safe. However, if they haven't addressed their past issues (their \"unfinished business\"), they may end up unconsciously gravitating towards individuals that remind them of past negative experiences, which can lead to repeating those patterns. This is elaborated on with the idea that unresolved emotional baggage can influence current relationship choices, causing people to connect with partners that may not serve their best interests. This can potentially lead to difficulties in forming healthy relationships. \n\nThis explanation can be found in the segment around [09:06] where she talks about how people date their unfinished business.",
-    "verdict": "partial",
-    "reasoning": "The actual answer captures some key elements of the expected answer, such as the notion of carrying unresolved issues into new relationships and the potential for repeating negative patterns. However, it introduces confusion by suggesting that individuals might seek the opposite of their past experiences, which deviates from the expected explanation that those with past neglect tend to attract similar partners. Additionally, the actual answer is not as concise as the expected answer and adds unnecessary complexity."
+    "answer": "The psychotherapist, Laurie Gottlieb, explains that \"we date our unfinished business\" to suggest that unresolved issues from our past, such as experiences with dishonest or unreliable people, can influence our dating choices in adulthood. She mentions that individuals may unconsciously seek partners who remind them of their past relationships, even if those were negative, because there is a familiarity tied to those experiences. This tendency arises from not having processed or worked through those past feelings, leading to repeating patterns in adult relationships [09:04] to [09:41].",
+    "verdict": "correct",
+    "reasoning": "The actual answer captures the essence of the expected answer by explaining how unresolved issues from the past influence dating choices. It mentions the concept of seeking partners reminiscent of past experiences, aligns with the idea of 'unfinished business', and reflects the notion of repeating patterns in relationships."
   },
   {
     "video": "podcast",
@@ -235,9 +235,9 @@
     "expected": "Lori Gottlieb explains that just as we bury unfinished emotional business from our past, we also unconsciously date that unfinished business -- e.g. if you grew up around someone neglectful, you may find yourself drawn to partners who repeat that same pattern.",
     "category": "needle_haystack",
     "system": "naive",
-    "answer": "Laurie Gottlieb, the psychotherapist in the video, explains that \"we date our unfinished business\" by referring to how individuals often unconsciously seek out partners who remind them of past relationships or experiences that were unresolved or hurtful. She elaborates that, despite wanting to find someone who is trustworthy and safe, people may inadvertently introduce partners into their lives who resemble those from their past who caused them pain or neglect.\n\nShe illustrates that if a person has experienced neglect or volatility in previous relationships, they might find themselves attracted to someone who exhibits similar traits, even if they consciously want the opposite. This happens because, without doing the necessary introspective work, they may not recognize these patterns and repetitively get drawn into unhealthy dynamics. Therefore, understanding and resolving one's past 'unfinished business' is essential for making healthier choices in future relationships [09:10 - 10:30].",
+    "answer": "According to Laurie Gottlieb, the psychotherapist in the video, when she says \"we date our unfinished business,\" she means that our unresolved past issues or experiences can influence our current relationships. She explains that if someone has grown up around neglectful or unreliable individuals, they may unconsciously be drawn to partners that remind them of those past experiences. Even though they may consciously desire a safe and secure relationship, they often find themselves repeating patterns and attracting similar types of people, which can lead to unhealthy dynamics if they haven't addressed their past. Essentially, it emphasizes the importance of doing the necessary personal work to break these cycles and foster healthier relationships [09:10][10:09].",
     "verdict": "correct",
-    "reasoning": "The actual answer accurately captures the essence of Lori Gottlieb's explanation regarding how individuals unconsciously seek out partners that remind them of unresolved emotional issues from their past. It effectively elaborates on the idea of being drawn to unhealthy dynamics due to past experiences, which aligns perfectly with the expected answer."
+    "reasoning": "The actual answer aligns closely with the expected answer, capturing the essence of Lori Gottlieb's concept of 'dating unfinished business.' It discusses how unresolved past issues influence current relationships and provides an example of being drawn to neglectful partners due to past experiences. The information is consistent, and while the actual answer provides additional detail about the importance of personal work, it does not detract from the main point, which matches the expected conclusion."
   },
   {
     "video": "podcast",
@@ -245,9 +245,9 @@
     "expected": "Dr. Joe Dispenza says we're conditioned to wait for an event/experience to happen before we let ourselves feel the emotion (closing the sense of lack). The healthier approach, he says, is to feel the emotion of already having that connection before the event actually happens.",
     "category": "needle_haystack",
     "system": "retrieval",
-    "answer": "The neuroscientist discusses the importance of feeling the emotion of a desired future before it happens, rather than waiting for an event to occur to produce that emotion. He emphasizes that people are often conditioned to think they need an event to create an emotional response. Instead, he suggests that if you truly feel the emotions associated with your desired future, you wouldn't feel a need to search for it because you would already be aligned with it. This means focusing on cultivating those positive emotions in the present, which shifts the mindset from seeking to aligning with love [16:00] - [17:54].",
+    "answer": "The neuroscientist discusses how we should feel the emotions associated with our desired future before it happens, rather than waiting for an event to occur to feel those emotions. He emphasizes that in order to attract the right partner, we need to focus on feeling the emotion of that desired experience, rather than just expecting it to manifest through external events. When we feel lack or separation in the past, it can detract from our vision of the future. The key idea is to shift from searching for love to aligning ourselves with the emotions we want to experience in a loving relationship, which represents a new way to look at love [16:01] - [17:38].",
     "verdict": "correct",
-    "reasoning": "The actual answer accurately reflects the essence of the expected answer by stating that the neuroscientist discusses feeling the emotion of a desired future before it occurs and emphasizes that people are conditioned to wait for an event to elicit emotional responses. It aligns with the conclusion of the expected answer about the healthier approach being to feel that connection in the present."
+    "reasoning": "The actual answer accurately conveys the main ideas presented in the expected answer, stating that we should feel the relevant emotions before the actual event occurs. It captures the essence of Dr. Joe Dispenza's message about the emotional approach to manifesting love and does not contradict the expected answer."
   },
   {
     "video": "podcast",
@@ -255,9 +255,9 @@
     "expected": "Dr. Joe Dispenza says we're conditioned to wait for an event/experience to happen before we let ourselves feel the emotion (closing the sense of lack). The healthier approach, he says, is to feel the emotion of already having that connection before the event actually happens.",
     "category": "needle_haystack",
     "system": "naive",
-    "answer": "The neuroscientist, Dr. Joe Dispenza, explains that we are conditioned to seek events or experiences to evoke emotions that fill the feeling of lack or separation from what we want, such as love. He emphasizes that instead of waiting for an external event to create emotions of joy or fulfillment, we should first feel the emotions associated with the desired experience before it happens. If we genuinely feel those emotions before the event, we wouldn't be in a state of need or lack. He encourages maintaining a positive emotional state to align with the future we want to create, rather than allowing past feelings of separation or survival to cloud our vision for the future [16:04-17:06].",
+    "answer": "The neuroscientist, Dr. Joe Dispenza, explains that people are conditioned to believe they need an event to occur in order to experience the emotion associated with that event. He emphasizes that the end product of any experience or event is an emotion, which often takes away the feeling of lack or separation from not having a relationship. Instead, he suggests that one should feel the emotion of the desired experience before it actually happens. By feeling that emotion truly, individuals won't be constantly searching for love but will approach the concept of love from a place of abundance, rather than lack [16:00-17:00].",
     "verdict": "correct",
-    "reasoning": "The actual answer accurately summarizes the main points made by Dr. Joe Dispenza regarding the emotion of love and how it relates to events. It captures the idea that we often wait for an external event to feel love, but the healthier approach is to feel that love first. The additional detail about maintaining a positive emotional state before the event does not contradict the expected answer and is aligned with its message."
+    "reasoning": "The actual answer accurately reflects the expected answer's content regarding Dr. Joe Dispenza's views on manifesting love. It explains the conditioning people experience regarding events and emotions, highlights the healthier approach of feeling emotions before events occur, and aligns with the expected conclusion about approaching love from a place of abundance."
   },
   {
     "video": "podcast",
@@ -265,9 +265,9 @@
     "expected": "James Corden compares clinging to a relationship to holding a balloon and refusing to ever let it go -- even tying it to your wrist so it 'can't disappear' -- as an illustration of unhealthy, fear-driven holding on.",
     "category": "needle_haystack",
     "system": "retrieval",
-    "answer": "The comedian and talk show host, James Corden, uses the analogy of being a kid with a balloon. He describes how people often feel pressured to hold on to something good, like a balloon, and never let it go. This metaphor highlights the idea that sometimes, instead of desperately trying to cling to something, it can be healthier to let go or allow things to flow naturally [24:05].",
+    "answer": "The comedian and talk show host uses the analogy of a child with a balloon to explain holding on too tightly in love. He suggests that people often believe when they find something good, they should hold onto it forever, similar to how a child might insist they will never let go of their balloon. He contrasts this with the idea of letting go and encourages a metaphorical discussion around the topic, suggesting that the expectation to hold onto what is good can be limiting. This analogy highlights the importance of understanding that love sometimes requires letting go rather than clinging too tightly to it [24:48].",
     "verdict": "partial",
-    "reasoning": "The actual answer captures the essence of the analogy but does not mention the specific detail of tying the balloon to the wrist, which is a key part of the expected answer. It implies that holding on tightly is unhealthy, but it does not directly make the same connection between fear-driven holding on and the balloon analogy."
+    "reasoning": "The actual answer correctly identifies the analogy of a child with a balloon as a representation of holding on too tightly in love, but it lacks the specific detail about tying it to the wrist and does not clearly convey the unhealthy, fear-driven nature of clinging to a relationship as stated in the expected answer. Additionally, it introduces extra concepts such as the idea of letting go and the limitations of holding on, which, while relevant, detracts from the focus on the analogy itself."
   },
   {
     "video": "podcast",
@@ -275,9 +275,9 @@
     "expected": "James Corden compares clinging to a relationship to holding a balloon and refusing to ever let it go -- even tying it to your wrist so it 'can't disappear' -- as an illustration of unhealthy, fear-driven holding on.",
     "category": "needle_haystack",
     "system": "naive",
-    "answer": "James Corden uses the analogy of a child holding onto a balloon to explain holding on too tightly in love. He describes how a kid may think that holding onto the balloon forever is the best way to keep it, tying it to their wrist out of fear of losing it. However, this leads to the balloon wilting over time, as it is neglected. Corden contrasts this with the idea that letting go of the balloon can be magical, allowing it to float away and create space for new experiences, suggesting that sometimes it's necessary to let go to make room for new opportunities in life and love [24:52].",
-    "verdict": "correct",
-    "reasoning": "The actual answer accurately captures the essence of the expected answer by explaining the analogy of holding a balloon to illustrate unhealthy attachment in love. It mentions the act of tying the balloon to the wrist and the fear of losing it, as well as the conclusion that letting go can be beneficial, which aligns with the expected message."
+    "answer": "The comedian and talk show host, James Corden, uses the analogy of a child with a balloon to explain holding on too tightly in love. He describes how a child might cling to a balloon, tying it to their wrist to prevent it from flying away. However, over time, the balloon will wilt and lose its beauty. Corden emphasizes that letting go of the balloon can be magical, as it allows for the possibility of getting a new balloon, which could be different or better. This analogy illustrates the idea that one must let go of certain things to make space for new opportunities in love [24:43-28:06].",
+    "verdict": "partial",
+    "reasoning": "The actual answer captures the essence of the analogy but introduces an additional point regarding the balloon wilting, which is not mentioned in the expected answer. While it maintains the core idea, the added detail complicates the main concept of 'letting go'. Additionally, it discusses the potential for getting a new balloon, which is a different perspective from the expected answer's focus on the unhealthy attachment."
   },
   {
     "video": "podcast",
@@ -285,9 +285,9 @@
     "expected": "Radhi says we tend to assume the person who spends more time (e.g. two hours) values/loves us more than someone who only gives fifteen minutes -- but what actually matters is the quality/presence of that time, not the raw quantity. A present fifteen-minute interaction can be more meaningful than two distracted hours.",
     "category": "needle_haystack",
     "system": "retrieval",
-    "answer": "Radhi discusses the quality of time spent with someone rather than just the quantity. She emphasizes that people often think that spending more time, like two hours, means that person values them more. However, she points out that the quality of those moments is what truly matters. For instance, a 15-minute interaction can feel much more fulfilling and loving when it is filled with presence than two hours of someone\u2019s distracted time. She reflects on how this understanding has influenced her perception of relationships and interactions [29:10 - 29:58].",
+    "answer": "Radhi explains that people often believe the amount of time spent with someone is a measure of their value or love for them. For example, if one person spends two hours with you and another spends just fifteen minutes, it might seem like the two-hour person values you more. However, she emphasizes that the quality of that time is more important. A fifteen-minute interaction filled with presence and genuine engagement can feel more meaningful and fulfilling than two hours of distracted time. Thus, it's the quality of the interaction rather than just the quantity that matters [29:12 - 29:58].",
     "verdict": "correct",
-    "reasoning": "The actual answer accurately captures the substance of the expected answer by discussing Radhi's emphasis on the quality of time over the quantity. It aligns with the conclusion that a present and meaningful fifteen-minute interaction can be more valuable than two hours of distracted time, which is exactly what the expected answer conveys."
+    "reasoning": "The actual answer matches the expected answer in substance by explaining the misconception about time versus genuine engagement. It clearly states that the quality of the interaction is what matters, not the quantity, and describes the importance of presence and meaningful engagement in a way that aligns with the expected answer."
   },
   {
     "video": "podcast",
@@ -295,8 +295,8 @@
     "expected": "Radhi says we tend to assume the person who spends more time (e.g. two hours) values/loves us more than someone who only gives fifteen minutes -- but what actually matters is the quality/presence of that time, not the raw quantity. A present fifteen-minute interaction can be more meaningful than two distracted hours.",
     "category": "needle_haystack",
     "system": "naive",
-    "answer": "Radhi emphasizes that the time spent with someone does not equate to the quality of the relationship. She states that while one person may spend two hours with you and another only fifteen minutes, what truly matters is the quality of that time. She believes that you can feel more fulfilled from a meaningful fifteen-minute interaction than from two hours of someone's distracted presence. This perspective encourages focusing on genuine connection rather than merely the amount of time spent together [29:12].",
+    "answer": "Radhi emphasizes that the quality of time spent with someone is more important than the quantity. She states, \"what is the quality of those two hours what is the quality of those 15 minutes makes such a difference\" [29:25]. She explains that it\u2019s possible to feel more fueled and loved from a 15-minute interaction where someone is truly present than from two hours of someone's distracted time [29:49]. Radhi shares her realization that the presence and engagement in those moments matter more than merely the duration of time spent together.",
     "verdict": "correct",
-    "reasoning": "The actual answer includes all the key points from the expected answer, emphasizing the difference between quantity and quality of time spent together and concluding that meaningful interactions are more valuable than merely the amount of time spent."
+    "reasoning": "The actual answer accurately captures the essence of what Radhi conveys about time spent with someone, emphasizing that the quality of the time is more significant than the quantity. It correctly reflects the conclusion that a meaningful 15-minute interaction can outweigh two distracted hours, aligning well with the expected answer."
   }
 ]

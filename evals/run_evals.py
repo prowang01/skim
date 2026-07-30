@@ -2,9 +2,12 @@
 (dump-everything) baseline against evals/dataset.json, grade both with an
 LLM judge, and print a comparison.
 
-Usage: python -m evals.run_evals
+Usage:
+  python -m evals.run_evals            # full 6-video suite -- run before committing
+  python -m evals.run_evals --fast     # FAST_VIDEO_IDS only (~30s) -- for iteration
 """
 
+import argparse
 import json
 import os
 import tempfile
@@ -27,6 +30,12 @@ load_dotenv()
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATASET_PATH = Path(__file__).parent / "dataset.json"
 RESULTS_PATH = Path(__file__).parent / "results.json"
+FAST_RESULTS_PATH = Path(__file__).parent / "results_fast.json"
+
+# Quick-iteration subset for --fast: the podcast's 32min transcription is the
+# bottleneck in the full suite (~10min end to end). These two are the smallest
+# short clips, covering 2 categories each without touching the podcast.
+FAST_VIDEO_IDS = ["rice", "ted"]
 
 JUDGE_MODEL = "gpt-4o-mini"
 SCORE_MAP = {"correct": 1.0, "partial": 0.5, "wrong": 0.0}
@@ -128,13 +137,19 @@ def print_summary(results: list[dict]) -> None:
     print_breakdown(results, "category", "category")
 
 
-def run() -> list[dict]:
-    """Run every question in the dataset through both systems, grade both,
-    write evals/results.json, and print the score breakdown."""
+def run(video_ids: list[str] | None = None) -> list[dict]:
+    """Run every question for the given video ids (or all videos, if None)
+    through both systems, grade both, write the results file, and print the
+    score breakdown."""
     dataset = json.loads(DATASET_PATH.read_text())
+    videos = dataset["videos"]
+    if video_ids is not None:
+        videos = [v for v in videos if v["id"] in video_ids]
+        print(f"=== FAST mode: {[v['id'] for v in videos]} only -- run without --fast for the full suite before committing ===", flush=True)
+
     results = []
 
-    for video in dataset["videos"]:
+    for video in videos:
         video_path = str(PROJECT_ROOT / video["path"])
         print(f"=== Ingesting {video['id']} ===", flush=True)
         index = ingest_video(video_path)
@@ -169,10 +184,18 @@ def run() -> list[dict]:
                     }
                 )
 
-    RESULTS_PATH.write_text(json.dumps(results, indent=2))
+    results_path = FAST_RESULTS_PATH if video_ids is not None else RESULTS_PATH
+    results_path.write_text(json.dumps(results, indent=2))
     print_summary(results)
     return results
 
 
 if __name__ == "__main__":
-    run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help=f"Run only {FAST_VIDEO_IDS} for quick iteration (writes evals/results_fast.json instead of evals/results.json)",
+    )
+    args = parser.parse_args()
+    run(video_ids=FAST_VIDEO_IDS if args.fast else None)

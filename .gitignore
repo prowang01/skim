@@ -4,3 +4,4 @@ __pycache__/
 .env
 .DS_Store
 evals/videos/
+evals/results_fast.json
