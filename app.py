@@ -98,7 +98,9 @@ if uploaded_file is not None:
                     for f, fd in zip(frames, frame_descriptions)
                 ]
         except Exception as e:
-            st.error(f"Couldn't process this video: {e}")
+            st.error("Couldn't process this video — please make sure it's a valid video file.")
+            with st.expander("Technical details"):
+                st.code(str(e))
         else:
             st.session_state["segments"] = segments
             st.session_state["frame_descriptions"] = frame_descriptions
