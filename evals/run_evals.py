@@ -42,9 +42,9 @@ RESULTS_PATH = Path(__file__).parent / "results.json"
 FAST_RESULTS_PATH = Path(__file__).parent / "results_fast.json"
 
 # Quick-iteration subset for --fast: the podcast's 32min transcription is the
-# bottleneck in the full suite (~10min end to end). These two are the smallest
-# short clips, covering 2 categories each without touching the podcast.
-FAST_VIDEO_IDS = ["rice", "ted"]
+# bottleneck in the full suite (~10min end to end). These are short clips,
+# covering English + French (gelee_groseille) without touching the podcast.
+FAST_VIDEO_IDS = ["rice", "ted", "gelee_groseille"]
 
 # Bump this if the cached ingestion shape ever changes (e.g. adding per-segment
 # confidence scores) so old cache entries get ignored instead of misread.

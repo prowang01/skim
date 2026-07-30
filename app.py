@@ -26,10 +26,15 @@ st.caption(
     "instead of using the whole video, and answers cite [mm:ss] timestamps."
 )
 
+LANGUAGE_OPTIONS = {"Auto-detect": None, "English": "en", "French": "fr"}
+
 uploaded_file = st.file_uploader("Upload an .mp4 file", type=["mp4"])
+language_label = st.selectbox("Language", options=list(LANGUAGE_OPTIONS.keys()))
+language = LANGUAGE_OPTIONS[language_label]
 
 if uploaded_file is not None:
-    if st.session_state.get("processed_filename") != uploaded_file.name:
+    processed_key = (uploaded_file.name, language)
+    if st.session_state.get("processed_key") != processed_key:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             video_path = tmp_path / uploaded_file.name
@@ -41,13 +46,13 @@ if uploaded_file is not None:
                 extract_audio(str(video_path), str(audio_path))
 
             with st.spinner("Transcribing with faster-whisper (first run downloads the model)..."):
-                segments = transcribe(str(audio_path))
+                segments = transcribe(str(audio_path), language=language)
 
             with st.spinner("Detecting scene changes and extracting frames..."):
                 frames = extract_frames(str(video_path), str(frames_dir))
 
             with st.spinner(f"Describing {len(frames)} frame(s) with GPT-4o..."):
-                frame_descriptions = describe_frames(frames)
+                frame_descriptions = describe_frames(frames, language=language)
 
             with st.spinner("Building the semantic index..."):
                 index = build_index(segments, frame_descriptions)
@@ -63,7 +68,7 @@ if uploaded_file is not None:
         st.session_state["frame_descriptions"] = frame_descriptions
         st.session_state["frame_previews"] = frame_previews
         st.session_state["index"] = index
-        st.session_state["processed_filename"] = uploaded_file.name
+        st.session_state["processed_key"] = processed_key
         st.session_state["chat_history"] = []
 
 if "segments" in st.session_state:

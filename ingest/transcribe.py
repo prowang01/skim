@@ -25,8 +25,12 @@ def _get_model(model_size: str) -> WhisperModel:
     return _model_cache[model_size]
 
 
-def transcribe(audio_path: str, model_size: str = DEFAULT_MODEL_SIZE) -> list[Segment]:
-    """Transcribe an audio file into timestamped segments."""
+def transcribe(
+    audio_path: str, model_size: str = DEFAULT_MODEL_SIZE, language: str | None = None
+) -> list[Segment]:
+    """Transcribe an audio file into timestamped segments. language is an
+    ISO 639-1 code (e.g. "en", "fr"); None lets Whisper auto-detect, which
+    occasionally misfires on short or unusual-sounding audio."""
     model = _get_model(model_size)
-    segments, _info = model.transcribe(audio_path, beam_size=5)
+    segments, _info = model.transcribe(audio_path, beam_size=5, language=language)
     return [Segment(start=s.start, end=s.end, text=s.text.strip()) for s in segments]

@@ -116,6 +116,33 @@
           "category": "needle_haystack"
         }
       ]
+    },
+    {
+      "id": "gelee_groseille",
+      "path": "evals/videos/gelee_groseille.mp4",
+      "description": "French redcurrant jelly recipe video -- tests French transcription, French frame descriptions, and French Q&A end-to-end.",
+      "questions": [
+        {
+          "question": "Combien de temps faut-il faire bouillir le mélange ?",
+          "expected": "3 minutes précisément, jamais au-delà de 4 minutes.",
+          "category": "factual"
+        },
+        {
+          "question": "Faut-il ajouter de l'eau à la recette ?",
+          "expected": "Non, on n'ajoute pas d'eau, ce qui rend la gelée plus intense.",
+          "category": "reasoning"
+        },
+        {
+          "question": "Combien de gelée obtient-on à partir de 2 kg de fruits ?",
+          "expected": "Environ 1,4 kg de gelée.",
+          "category": "factual"
+        },
+        {
+          "question": "À quelle température régler le four ?",
+          "expected": "Not mentioned -- the recipe uses stovetop cooking, no oven.",
+          "category": "not_in_video"
+        }
+      ]
     }
   ]
 }

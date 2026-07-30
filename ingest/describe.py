@@ -11,13 +11,16 @@ from ingest.frames import Frame
 
 VISION_MODEL = "gpt-4o"
 
+# Matches app.py's language selector (None/"en" -> English, "fr" -> French).
+LANGUAGE_NAMES = {"en": "English", "fr": "French"}
+
 SYSTEM_PROMPT = """You are given several still frames extracted from a video, in \
 chronological order, each labeled with its index. Describe concisely what each \
 frame shows: objects, setting, on-screen text or data (transcribe exact text, \
 numbers, and figures verbatim if visible -- this is often the only place such \
 data appears), and any notable action captured in that instant. Keep each \
 description to 1-3 sentences. Return exactly one entry per frame, using the \
-given index."""
+given index. Write all descriptions in {language}."""
 
 FRAME_DESCRIPTIONS_SCHEMA = {
     "type": "object",
@@ -52,14 +55,16 @@ def _encode_image(path: str) -> str:
     return f"data:image/jpeg;base64,{b64}"
 
 
-def describe_frames(frames: list[Frame]) -> list[FrameDescription]:
+def describe_frames(frames: list[Frame], language: str | None = None) -> list[FrameDescription]:
     """Describe all frames in a single GPT-4o call instead of one call per
     frame -- avoids paying the fixed per-request overhead (system prompt,
-    latency) up to 25 times over."""
+    latency) up to 25 times over. language is an ISO 639-1 code ("en", "fr");
+    None (auto-detect/default) describes in English."""
     if not frames:
         return []
 
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    system_prompt = SYSTEM_PROMPT.format(language=LANGUAGE_NAMES.get(language, "English"))
 
     content = [{"type": "text", "text": f"Here are {len(frames)} frames from a video, in order."}]
     for i, frame in enumerate(frames):
@@ -74,7 +79,7 @@ def describe_frames(frames: list[Frame]) -> list[FrameDescription]:
     response = client.chat.completions.create(
         model=VISION_MODEL,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": content},
         ],
         response_format={
