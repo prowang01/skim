@@ -10,6 +10,10 @@ transcript, frame previews, and retrieved context for inspection.
 Built for tutorials, talks, interviews, and lectures. It reasons from speech and
 stills; it cannot reliably measure motion or reconstruct continuous action.
 
+## Demo
+
+https://github.com/user-attachments/assets/aa427b8c-4e61-42d4-a061-319924e03800
+
 ## How it works
 
 ```mermaid
