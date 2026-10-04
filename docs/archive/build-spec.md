@@ -1,3 +1,13 @@
+# Original build specification
+
+Archived planning material; proposals, estimates, stack alternatives, and example
+answers below are not claims about shipped capabilities or measured results.
+The original spec used the working name VideoLens. Current implementation and
+setup are described in [the README](../../README.md) and
+[technical notes](../technical-notes.md). This is not an active roadmap.
+
+---
+
 # VideoLens — Multimodal Video Understanding (build spec)
 
 > A system that "understands" a video by building a **timestamped multimodal index** (spoken audio + key visual frames), retrieves the relevant pieces on demand to answer questions, fuses audio + visual, and is honest about its blind spots.

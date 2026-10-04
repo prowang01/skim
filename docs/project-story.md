@@ -1,5 +1,9 @@
 # Skim — The Story Behind the Project
 
+Personal interview-prep narrative, qualified during the portfolio cleanup.
+For current mechanics and evidence boundaries, see [technical notes](technical-notes.md).
+The [archived implementation log](archive/implementation-log.md) retains the detailed original account.
+
 A personal account of what was built, why each decision was made, and what I learned. This is not the
 README (that describes the current state for a reader). This is the journey: the trade-offs, the dead
 ends, and the concepts I picked up along the way.
@@ -9,10 +13,9 @@ ends, and the concepts I picked up along the way.
 ## 1. The pitch
 
 I built Skim to solve a problem I kept hitting myself. I wanted to hand a video to an AI and talk about
-it: summarize it, find a specific moment, ask what was said. Some tools are starting to do this. Gemini
-and GPT can read short videos now, and Claude a little less so, but that support is recent, partial, and
-not available everywhere I work. At my internship, the tool we use (Dust) does not accept `.mp4` files
-at all, and models cannot open blocked YouTube links. Frontier LLMs read text and images, not raw video.
+it: summarize it, find a specific moment, ask what was said. The motivating workflow was a text-oriented AI tool at my internship that did not accept `.mp4`
+files in the setup I used. Skim addresses that workflow by converting local video into text and
+sampled images that the chosen APIs can consume; this is not a claim about other products today.
 
 My first goal was modest: I just wanted a way to feed videos into an AI so I could prompt it better.
 Along the way the goal shifted into something more valuable to me. It stopped being about shipping yet
@@ -23,8 +26,9 @@ project clearly and never lose the reasoning behind any choice.
 
 In one line: Skim turns a video into something an LLM can query. Concretely, it is a local Streamlit app
 where you upload a video and chat with it. You ask something like "how many eggs does she use?" and you
-get back "four eggs" with the exact timestamp it was said or shown, or an honest "that is not in the
-video" when the answer really is not there. Under the hood it splits the video into a timestamped
+get back an answer with a timestamp citation to a transcript segment or sampled frame, or an
+acknowledgment that the retrieved excerpt does not contain the answer. These are intended behaviors,
+not guarantees of accuracy or evidence that information is absent from the entire video. Under the hood it splits the video into a timestamped
 transcript and sampled visual frames, indexes those pieces, and retrieves only the relevant ones to
 answer.
 
@@ -39,7 +43,7 @@ Split, Store, Search, Answer.
    transcript (faster-whisper, running locally), and the picture becomes a set of key frames (selected
    by ffmpeg scene-detection, described in words by GPT-4o vision). The output is many small pieces
    called chunks (a chunk is one small unit of content: a transcript segment or an image description).
-   This step is deterministic per video, and it is the slow part.
+   This step is the slow part and can vary across runs, especially transcription and vision output.
 2. **Index (store).** Each chunk is turned into an embedding, a vector that captures its meaning, and
    stored so it can be searched by meaning rather than by keyword. This is the library.
 3. **Retrieval (search).** For a given question, the system fetches only the relevant chunks instead of
@@ -94,32 +98,34 @@ completeness, and I wrote the gap down rather than hide it.
 **Retrieval instead of dumping everything.** Rather than send the whole transcript and all frames to the
 model on every question, I retrieve only the relevant chunks. The trade is more machinery (an index,
 embeddings, a retriever) against lower cost and tighter focus. The lesson I discovered here reframed the
-whole project: retrieval only helps when the content is too big to fit in the model's context at once.
-On short videos, dumping everything works just as well.
+whole project: retrieval introduces a recall trade-off while limiting the context sent per question.
+On this small eval set, short-video scores match the full-context baseline. The project does not
+measure a context-window overflow threshold or establish when retrieval helps in general.
 
 **Adaptive top-k, then a relative cap.** Top-k is simply how many chunks I fetch for a question. A fixed
 value of 6 missed answers on a 32-minute podcast of about 900 chunks. I made that number scale with the
 size of the video, and the long-video score jumped. Then I noticed the opposite failure. On a 3-minute
 video of about 90 chunks, the same rule was now pulling back roughly 80% of the video. At that point
 retrieval is no longer selective, it is just burning tokens to hand the model almost everything. So I
-added a ceiling: never fetch more than about a third of the chunks. Adaptive top-k fixes recall on long
+added a target cap of about 35% of the chunks, with a 15-item floor (or the whole corpus if smaller)
+and an exception that always preserves the seed selection. Adaptive top-k fixes recall on long
 content, and the cap fixes waste on short content. I validated both on item counts, a deterministic
-signal, and confirmed the cap never even triggers on the podcast.
+signal, and observed that the cap did not trigger on the podcast contexts recorded in the build notes. That is conditional on context size, not a guarantee for every future question.
 
 **Retrieve-then-rerank, built, tested, and deliberately turned off.** I added a reranker. The idea is to
 retrieve a wide set of candidates with the fast embedding search (a bi-encoder, which sizes up the
 question and each chunk separately), then re-score them with a slower, sharper model (a cross-encoder,
 which reads the question and the chunk together and judges how well they match). On paper this catches
 cases the bi-encoder misses. On my dataset it made scores slightly worse. So I kept the code as an
-opt-in flag, disabled by default, with a note explaining why: on a small, clean dataset the extra
-machinery does not pay, and it earns its place on larger, noisier corpora. Rejecting your own addition
+opt-in flag, disabled by default, with a note explaining why: the tested configuration did not improve results here. Whether it helps
+on a larger or noisier corpus remains an experiment to run. Rejecting your own addition
 because the numbers say so is a real engineering call.
 
-**Adjacent-context retrieval.** When I retrieve a chunk, I also pull its neighbors in time. This fixed a
+**Adjacent-context retrieval.** When I retrieve a chunk, I also pull its two preceding and two following same-modality neighbors by sequence position. This fixed a
 case the reranker could not. The passage that announces an answer and the passage that contains it are
 sometimes different chunks. Announce a thing, and now you drag in the thing itself. The trade is that
-pulling too many neighbors adds noise, so I keep the window small. This closed the last gap on the
-podcast with no regressions elsewhere.
+pulling too many neighbors adds noise, so I keep the window small. The build notes report a 4.0/4 podcast run without regressions on the other videos in that run;
+subsequent runs varied. The checked-in snapshot also scores the podcast at 4.0/4.
 
 **LLM-as-judge, then calibrating it.** The evals are graded by an LLM acting as a judge. But an LLM
 judge is non-deterministic. One borderline question kept flipping between "correct" and "partial" across
@@ -130,8 +136,7 @@ answer as correct on a knowable fact. So I bounded that clause to only apply whe
 itself asserts that something is absent. The lesson stuck: when you tune a judge, you are chasing
 consistency, not leniency. A judge that inflates scores voids the whole eval.
 
-**Caching ingestion to stabilize measurement.** Ingestion (transcript, frames, vision) is deterministic
-per video but slow. I cache it, keyed by the video file, with a `--no-cache` override for when I change
+**Caching ingestion to stabilize measurement.** Ingestion (transcript, frames, vision) is slow and can vary between runs. I cache it, keyed by the video file, with a `--no-cache` override for when I change
 the ingestion logic. There was a side benefit I did not expect. Whisper hallucinates slightly different
 noise on near-silent audio each run, and caching froze that, because a cache hit returns a byte-identical
 transcript. My experiments got cleaner because I had accidentally removed a source of random variance.
@@ -161,8 +166,8 @@ is not a smarter ranker at all, it is reaching for the neighboring chunks.
 
 The honest headline: after all of this, retrieval landed essentially tied with the naive
 dump-everything baseline, a razor-thin edge on one long-video question that is well within noise. That
-is not a disappointment, it is the lesson. Retrieval's advantage only appears when the content exceeds
-the model's context window. On anything short, the simple approach is just as good. Knowing when an
+is not a disappointment, it is the lesson. The observed advantage is limited to one long-video question in the saved run. This does not
+establish a general advantage, or a context-window threshold where retrieval becomes better. Knowing when an
 architecture is justified is as valuable as knowing how to build it.
 
 ---
@@ -197,7 +202,7 @@ doubt, validate on the signal that cannot wobble.
 every frame. Cheaper, but it can skip brief static moments, which is exactly what caused the bacon bug.
 
 **VAD (voice activity detection).** Detecting where speech actually is, so you do not transcribe silence.
-It is the real cure for Whisper inventing words over quiet audio.
+It is a possible mitigation for transcription over quiet audio; it is not enabled by this project and would need evaluation before claiming a fix.
 
 ---
 
@@ -209,8 +214,7 @@ where it goes.
 **Silence-proof the transcription.** The bug is concrete: on a near-silent cooking video, Whisper
 invented small scraps of speech that were never said. I contained it (caching froze the noise, and the
 judge stopped rewarding dodges), but the cause is still there. The next step is to detect where speech
-actually is with voice activity detection, or to drop low-confidence segments, so the transcript never
-contains ghosts in the first place.
+actually is with voice activity detection, or to drop low-confidence segments, to reduce spurious speech, while checking that quiet real speech is retained.
 
 **Tune retrieval per kind of video.** I learned that short and long videos want opposite things. One
 needs a wider net, the other needs a ceiling. Right now I handle that with one blunt rule. I would like
@@ -219,16 +223,15 @@ samples frames. This comes straight out of the short-versus-long fight.
 
 **Add keyword search alongside meaning search (hybrid).** The "words do not match" failure mode has a
 mirror image. Sometimes the exact word is what matters, a name, a number, a technical term, and a
-meaning-based search glides right past it. Pairing the embedding search with a classic keyword search
-(BM25) would cover both cases, which is why serious RAG systems run both.
+meaning-based search glides right past it. Pairing embedding search with keyword search (BM25) is one possible experiment for exact-term
+recall; whether it improves this system would need measurement.
 
 **Ingest YouTube links directly.** Half of my original pain was that getting a video in was a chore.
 Pulling a YouTube transcript straight from its link, with no download and no file juggling, would remove
 that friction and bring the project back to the exact itch that started it.
 
 **Make the judge vote.** The last sliver of eval variance lives on one genuinely subjective question. I
-could have the judge grade it several times and take the majority, which is steadier at the cost of
-triple the judge calls. I left it as a known, bounded bit of noise rather than pay that price, but it is
+could have the judge grade it several times and take the majority, which could reduce variance at the cost of triple the judge calls, without guaranteeing correct grades. I left it as a known, bounded bit of noise rather than pay that price, but it is
 the obvious lever if the noise ever starts to matter.
 
 **Give it a proper interface.** The current UI is functional, not beautiful. Chat on the right,
@@ -236,8 +239,7 @@ transcript top-left, frames bottom-left would show off what the tool can do. It 
 lives or dies on it.
 
 **Retry the reranker where it belongs.** It did not pay off on my small, clean dataset, but I only
-proved it does not help here, not that it never helps. On a large, noisy corpus, retrieve-then-rerank is
-supposed to shine. That is an experiment worth running on the terrain it was built for.
+proved it does not help here, not that it never helps. A larger, noisier corpus would test a different setting, but improvement there is not established. That is an experiment worth running on the terrain it was built for.
 
 ---
 

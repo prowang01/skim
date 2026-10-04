@@ -7,7 +7,7 @@ hash -- retrieval, answers, and judging always run fresh so you can iterate
 on top-k/cap/adjacent-context/the judge rubric without re-transcribing.
 
 Usage:
-  python -m evals.run_evals              # full 6-video suite -- run before committing
+  python -m evals.run_evals              # full 7-video suite -- run before committing
   python -m evals.run_evals --fast       # FAST_VIDEO_IDS only -- for iteration
   python -m evals.run_evals --no-cache   # force fresh ingestion (e.g. after changing
                                           # transcribe.py/frames.py/describe.py)

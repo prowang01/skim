@@ -1,3 +1,13 @@
+# Historical roadmap
+
+Archived planning material; proposals, estimates, stack alternatives, and example
+answers below are not claims about shipped capabilities or measured results.
+The original spec used the working name VideoLens. Current implementation and
+setup are described in [the README](../../README.md) and
+[technical notes](../technical-notes.md). This is not an active roadmap.
+
+---
+
 # Roadmap
 
 Planning doc written at the end of a Palier 5 session (retrieval + rerank +

@@ -17,7 +17,15 @@ def _get_model():
     # by default; see README).
     global _model
     if _model is None:
-        from sentence_transformers import CrossEncoder
+        try:
+            from sentence_transformers import CrossEncoder
+        except ModuleNotFoundError as exc:
+            if exc.name != "sentence_transformers":
+                raise
+            raise ImportError(
+                "SKIM_ENABLE_RERANK requires optional dependencies. "
+                "Install them with: python -m pip install -r requirements-rerank.txt"
+            ) from exc
 
         _model = CrossEncoder(RERANK_MODEL)
     return _model

@@ -120,7 +120,7 @@
     {
       "id": "gelee_groseille",
       "path": "evals/videos/gelee_groseille.mp4",
-      "description": "French redcurrant jelly recipe video -- tests French transcription, French frame descriptions, and French Q&A end-to-end.",
+      "description": "French redcurrant jelly recipe video -- exercises auto-detected transcription and French Q&A; the eval harness uses English frame descriptions by default.",
       "questions": [
         {
           "question": "Combien de temps faut-il faire bouillir le mélange ?",

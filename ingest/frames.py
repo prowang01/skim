@@ -107,10 +107,10 @@ def extract_frames(video_path: str, out_dir: str) -> list[Frame]:
     """Extract up to MAX_FRAMES timestamped frames from a video.
 
     Prefers scene-change frames (only capture when the image changes
-    significantly) over fixed-interval sampling, so cost is bounded on long
-    videos without missing real cuts. Falls back to uniform time sampling
-    if too few scene changes are detected (e.g. a static talking-head
-    video), so the visual index is never empty.
+    significantly) over fixed-interval sampling. The returned frame count
+    bounds downstream vision input; scene extraction still scans the video.
+    Falls back to uniform time sampling if too few scene changes are detected
+    (e.g. a static talking-head video). Failed extractions can leave no frames.
     """
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)

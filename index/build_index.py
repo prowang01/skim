@@ -1,8 +1,8 @@
 """In-memory semantic index over transcript segments + frame descriptions.
 
 Both sources are embedded in a single batched call and kept as a plain numpy
-matrix -- at the scale of one video (dozens of segments/frames) a vector DB
-or FAISS would be pure overhead."""
+matrix for the current single-video, session-scoped app; no vector DB or
+persistent index is required."""
 
 import os
 from dataclasses import dataclass

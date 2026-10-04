@@ -13,12 +13,12 @@ from index.rerank import rerank
 
 # Cross-encoder rerank is opt-in: it showed no net improvement over plain
 # adaptive top-k in eval testing, so it stays off unless requested (see
-# README "Design decisions").
+# docs/technical-notes.md).
 RERANK_ENV_VAR = "SKIM_ENABLE_RERANK"
 
 # Default path: single-stage adaptive top-k. sqrt growth with a floor/ceiling
-# keeps k small for short videos and bounded for long ones (see README for
-# how these bounds were chosen from real rank data).
+# keeps k small for short videos and bounded for long ones (see docs/technical-notes.md
+# for the documented recall investigation).
 MIN_TOP_K = 6
 MAX_TOP_K = 40
 TOP_K_SQRT_FACTOR = 1.4
@@ -96,7 +96,7 @@ def _expand_with_adjacent_context(
     """Pull in neighbor_count same-modality chunks immediately before and
     after each selected item, by position in the transcript/frame sequence
     (not by time). Catches answers that sit a few segments after a passage
-    that only announces them -- see README for why this exists."""
+    that only announces them -- see docs/technical-notes.md for why this exists."""
     if neighbor_count <= 0:
         return selected
 
