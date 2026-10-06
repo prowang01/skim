@@ -117,15 +117,75 @@ cached ingestion are gitignored and are not distributed with this repository.
 Evaluation requires the same setup and makes OpenAI API calls.
 
 ```bash
-python -m evals.run_evals            # full suite; overwrites evals/results.json
+python -m evals.run_evals            # full suite; writes evals/results_<provider>.json
 python -m evals.run_evals --fast     # rice, ted, gelee_groseille; separate results file
+python -m evals.run_evals --video ted # single-video smoke test; separate results file
 python -m evals.run_evals --no-cache # fresh ingestion; refreshes the cache
 ```
 
-Ingestion is cached by file content hash; embeddings, retrieval, answers, and
-judging run fresh. Use `--no-cache` after changing ingestion code.
+Transcripts are cached by file content hash **and STT provider**; embeddings,
+retrieval, answers, and judging run fresh. Use `--no-cache` after changing ingestion code.
 See [evaluation notes](docs/technical-notes.md#evaluation-method-and-reproducibility)
 for cache behavior and comparison limits.
+
+### STT provider experiment
+
+ElevenLabs Scribe v2 is available as an alternative transcription backend to
+faster-whisper. Both providers use the same downstream retrieval, answering,
+and evaluation pipeline.
+
+I compared them on two existing benchmark videos — TED (English) and
+`gelee_groseille` (French) — covering 6 questions. After manual inspection,
+both providers produced factually correct downstream answers on this small
+subset, so the experiment does not demonstrate a QA-quality advantage for
+either provider.
+
+Scribe v2 did produce cleaner French transcription on several terms that
+Whisper misrecognized, while provider-specific segmentation changed the
+retrieval composition. These results are a small engineering experiment, not
+a general transcription benchmark.
+
+### Selecting a transcription provider
+
+Whisper remains the default (`small`, CPU, int8). Set these in the gitignored `.env`:
+
+```dotenv
+OPENAI_API_KEY=your_openai_key
+ELEVENLABS_API_KEY=your_elevenlabs_key
+SKIM_STT_PROVIDER=whisper
+```
+
+Both providers receive the same mono 16kHz WAV and auto-detect the language.
+Selecting ElevenLabs sends that audio to its hosted API; the remaining pipeline
+is unchanged.
+
+After installing `requirements.txt`, run these from the project root with the
+virtual environment active. In **Windows PowerShell**:
+
+```powershell
+$env:SKIM_STT_PROVIDER = "whisper"
+python -m evals.run_evals --video ted
+
+$env:SKIM_STT_PROVIDER = "elevenlabs"
+python -m evals.run_evals --video ted
+```
+
+Use `--video gelee_groseille` for the French clip, or omit `--video` for the full
+7-video / 19-question benchmark. Results are written to
+`evals/results_<provider>_<video>.json` for a single video and
+`evals/results_<provider>.json` for the full suite.
+
+On macOS/Linux use `SKIM_STT_PROVIDER=elevenlabs python -m evals.run_evals --video ted`
+and the same environment-prefix pattern for full runs. Shell environment variables
+take precedence over `.env`. New experiment results are gitignored; the historical
+`evals/results.json` is preserved.
+
+Frame descriptions are shared across providers to keep visual evidence identical.
+Keep the cache between comparison runs; `--no-cache` and `--clear-cache` regenerate
+visual descriptions and introduce another source of variation.
+Keep `SKIM_ENABLE_RERANK` identical in both runs (normally unset/false).
+
+Offline integration checks: `python -m unittest evals.test_stt`.
 
 ## Limits and repository map
 

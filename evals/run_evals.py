@@ -2,13 +2,15 @@
 (dump-everything) baseline against evals/dataset.json, grade both with an
 LLM judge, and print a comparison.
 
-Ingestion (transcript + frame descriptions) is cached per video by content
-hash -- retrieval, answers, and judging always run fresh so you can iterate
-on top-k/cap/adjacent-context/the judge rubric without re-transcribing.
+Transcripts are cached by video content hash and STT provider. Frame
+descriptions are shared across providers. Retrieval, answers, and judging run fresh
+so you can iterate on top-k/cap/adjacent-context/the judge rubric without
+re-transcribing.
 
 Usage:
   python -m evals.run_evals              # full 7-video suite -- run before committing
   python -m evals.run_evals --fast       # FAST_VIDEO_IDS only -- for iteration
+  python -m evals.run_evals --video ted  # one-video smoke test
   python -m evals.run_evals --no-cache   # force fresh ingestion (e.g. after changing
                                           # transcribe.py/frames.py/describe.py)
   python -m evals.run_evals --clear-cache  # wipe the ingestion cache and exit
@@ -26,7 +28,9 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from ingest.extract import extract_audio
-from ingest.transcribe import transcribe, Segment
+from ingest.transcribe import (
+    transcribe, Segment, get_stt_provider, DEFAULT_MODEL_SIZE, ELEVENLABS_MODEL,
+)
 from ingest.frames import extract_frames
 from ingest.describe import describe_frames, FrameDescription
 from index.build_index import build_index
@@ -38,8 +42,6 @@ load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATASET_PATH = Path(__file__).parent / "dataset.json"
-RESULTS_PATH = Path(__file__).parent / "results.json"
-FAST_RESULTS_PATH = Path(__file__).parent / "results_fast.json"
 
 # Quick-iteration subset for --fast: the podcast's 32min transcription is the
 # bottleneck in the full suite (~10min end to end). These are short clips,
@@ -136,24 +138,39 @@ def _file_hash(path: str) -> str:
 
 
 def _cache_path(video_path: str) -> Path:
-    return CACHE_DIR / f"{Path(video_path).stem}_{_file_hash(video_path)[:16]}.json"
+    return CACHE_DIR / get_stt_provider() / f"{Path(video_path).stem}_{_file_hash(video_path)[:16]}.json"
+
+
+def _cached_frames(cache_path: Path) -> list[FrameDescription] | None:
+    # Only visuals may cross provider boundaries. Legacy unlabelled caches
+    # can supply visuals, but their transcripts are never read here.
+    for directory in ("visual", "", "whisper", "elevenlabs"):
+        path = CACHE_DIR / directory / cache_path.name
+        if path.exists():
+            cached = json.loads(path.read_text(encoding="utf-8"))
+            if cached.get("cache_version") == CACHE_VERSION:
+                return [FrameDescription(**f) for f in cached["frame_descriptions"]]
+    return None
 
 
 def ingest_video(video_path: str, use_cache: bool = True):
     """Run the full ingestion pipeline (audio, transcript, frames,
     descriptions) and build the semantic index for one video. Ingestion is
-    cached by video file content hash; embedding/indexing still happens
+    cached by video content hash and provider; visuals are shared between
+    providers to isolate the STT change. Embedding/indexing still happens
     fresh every call regardless of cache hits."""
+    provider = get_stt_provider()
     cache_path = _cache_path(video_path)
 
     if use_cache and cache_path.exists():
-        cached = json.loads(cache_path.read_text())
-        if cached.get("cache_version") == CACHE_VERSION:
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        if cached.get("cache_version") == CACHE_VERSION and cached.get("stt_provider") == provider:
             print(f"  (ingestion cache hit: {cache_path.name})", flush=True)
             segments = [Segment(**s) for s in cached["segments"]]
             descriptions = [FrameDescription(**f) for f in cached["frame_descriptions"]]
             return build_index(segments, descriptions)
 
+    descriptions = _cached_frames(cache_path) if use_cache else None
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
         audio_path = tmp_path / "audio.wav"
@@ -161,21 +178,32 @@ def ingest_video(video_path: str, use_cache: bool = True):
 
         extract_audio(video_path, str(audio_path))
         segments = transcribe(str(audio_path))
-        frames = extract_frames(video_path, str(frames_dir))
-        descriptions = describe_frames(frames)
+        if descriptions is None:
+            frames = extract_frames(video_path, str(frames_dir))
+            descriptions = describe_frames(frames)
 
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    visual_path = CACHE_DIR / "visual" / cache_path.name
+    visual_path.parent.mkdir(parents=True, exist_ok=True)
+    visual_path.write_text(json.dumps({
+        "cache_version": CACHE_VERSION,
+        "frame_descriptions": [
+            {"timestamp": f.timestamp, "description": f.description} for f in descriptions
+        ],
+    }, indent=2), encoding="utf-8")
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(
         json.dumps(
             {
                 "cache_version": CACHE_VERSION,
+                "stt_provider": provider,
                 "segments": [{"start": s.start, "end": s.end, "text": s.text} for s in segments],
                 "frame_descriptions": [
                     {"timestamp": f.timestamp, "description": f.description} for f in descriptions
                 ],
             },
             indent=2,
-        )
+        ),
+        encoding="utf-8",
     )
 
     return build_index(segments, descriptions)
@@ -218,11 +246,16 @@ def run(video_ids: list[str] | None = None, use_cache: bool = True) -> list[dict
     """Run every question for the given video ids (or all videos, if None)
     through both systems, grade both, write the results file, and print the
     score breakdown."""
-    dataset = json.loads(DATASET_PATH.read_text())
+    provider = get_stt_provider()
+    dataset = json.loads(DATASET_PATH.read_text(encoding="utf-8"))
     videos = dataset["videos"]
     if video_ids is not None:
+        unknown = set(video_ids) - {v["id"] for v in videos}
+        if unknown or not video_ids:
+            raise ValueError(f"Invalid video selection: {video_ids}")
         videos = [v for v in videos if v["id"] in video_ids]
-        print(f"=== FAST mode: {[v['id'] for v in videos]} only -- run without --fast for the full suite before committing ===", flush=True)
+        print(f"=== Selected videos: {[v['id'] for v in videos]} ===", flush=True)
+    print(f"=== STT provider: {provider} ===", flush=True)
 
     results = []
 
@@ -250,6 +283,8 @@ def run(video_ids: list[str] | None = None, use_cache: bool = True) -> list[dict
                 print(f"    {system:<10} {verdict['verdict']}", flush=True)
                 results.append(
                     {
+                        "stt_provider": provider,
+                        "stt_model": DEFAULT_MODEL_SIZE if provider == "whisper" else ELEVENLABS_MODEL,
                         "video": video["id"],
                         "question": question,
                         "expected": expected,
@@ -261,18 +296,28 @@ def run(video_ids: list[str] | None = None, use_cache: bool = True) -> list[dict
                     }
                 )
 
-    results_path = FAST_RESULTS_PATH if video_ids is not None else RESULTS_PATH
-    results_path.write_text(json.dumps(results, indent=2))
+    suffix = ""
+    if video_ids is not None:
+        suffix = "_fast" if video_ids == FAST_VIDEO_IDS else "_" + "_".join(v["id"] for v in videos)
+    results_path = Path(__file__).parent / f"results_{provider}{suffix}.json"
+    results_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+    print(f"Results saved to {results_path}", flush=True)
     print_summary(results)
     return results
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument(
         "--fast",
         action="store_true",
-        help=f"Run only {FAST_VIDEO_IDS} for quick iteration (writes evals/results_fast.json instead of evals/results.json)",
+        help=f"Run only {FAST_VIDEO_IDS} (writes results_<provider>_fast.json)",
+    )
+    selection.add_argument(
+        "--video",
+        choices=[v["id"] for v in json.loads(DATASET_PATH.read_text(encoding="utf-8"))["videos"]],
+        help="Run one video (writes results_<provider>_<video>.json)",
     )
     parser.add_argument(
         "--no-cache",
@@ -290,4 +335,5 @@ if __name__ == "__main__":
         shutil.rmtree(CACHE_DIR, ignore_errors=True)
         print(f"Cleared {CACHE_DIR}")
     else:
-        run(video_ids=FAST_VIDEO_IDS if args.fast else None, use_cache=not args.no_cache)
+        video_ids = [args.video] if args.video else FAST_VIDEO_IDS if args.fast else None
+        run(video_ids=video_ids, use_cache=not args.no_cache)

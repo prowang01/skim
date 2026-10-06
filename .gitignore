@@ -5,4 +5,7 @@ __pycache__/
 .DS_Store
 evals/videos/
 evals/results_fast.json
+evals/results_whisper*.json
+evals/results_elevenlabs*.json
 evals/.cache/
+/Microsoft/Windows/PowerShell/ModuleAnalysisCache

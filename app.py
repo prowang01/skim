@@ -10,7 +10,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from ingest.extract import extract_audio
-from ingest.transcribe import transcribe
+from ingest.transcribe import transcribe, get_stt_provider
 from ingest.frames import extract_frames
 from ingest.describe import describe_frames
 from index.build_index import build_index
@@ -41,7 +41,7 @@ language_label = st.selectbox("Language", options=list(LANGUAGE_OPTIONS.keys()))
 language = LANGUAGE_OPTIONS[language_label]
 
 if uploaded_file is not None:
-    processed_key = (uploaded_file.name, language)
+    processed_key = (uploaded_file.name, language, get_stt_provider())
     if st.session_state.get("processed_key") != processed_key:
         try:
             with tempfile.TemporaryDirectory() as tmp_dir:
@@ -54,7 +54,7 @@ if uploaded_file is not None:
                 with st.spinner("Extracting audio with ffmpeg..."):
                     extract_audio(str(video_path), str(audio_path))
 
-                with st.spinner("Transcribing with faster-whisper (first run downloads the model)..."):
+                with st.spinner(f"Transcribing with {get_stt_provider()}..."):
                     segments = transcribe(str(audio_path), language=language)
 
                 with st.spinner("Detecting scene changes and extracting frames..."):
